@@ -1,0 +1,5 @@
+db.sqlite3
+.env
+venv
+populate_exercises.py
+test_routine_generator.py

@@ -1,0 +1,348 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ workout.title }} - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="workout-detail-section">
+    <div class="container">
+        <div class="header-content">
+            <a href="{% url 'exercises:workout_list' %}" class="back-link">
+                <span class="back-icon">←</span> Volver a entrenamientos
+            </a>
+            
+            <div class="workout-header-card">
+                <div class="workout-info-main">
+                    <h1 class="workout-title gradient-text">{{ workout.title }}</h1>
+                    <p class="workout-desc">{{ workout.description }}</p>
+                    
+                    <div class="workout-tags">
+                        <span class="tag difficulty-{{ workout.difficulty }}">
+                            {{ workout.get_difficulty_display }}
+                        </span>
+                        <span class="tag duration-tag">
+                            ⏱️ {{ workout.estimated_duration }} min
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="workout-actions">
+                    <a href="{% url 'exercises:workout_session' workout.slug %}" class="btn btn-primary btn-lg pulse-animation">
+                        🚀 Comenzar Rutina
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="exercises-timeline">
+            <h2 class="timeline-title">Ejercicios de la Rutina</h2>
+            
+            <div class="timeline-container">
+                {% for item in workout_exercises %}
+                <div class="timeline-item">
+                    <div class="timeline-marker">{{ forloop.counter }}</div>
+                    <div class="timeline-content">
+                        <div class="exercise-card">
+                            <div class="exercise-thumb">
+                                {% if item.exercise.image %}
+                                <img src="{{ item.exercise.image.url }}" alt="{{ item.exercise.name }}">
+                                {% else %}
+                                <div class="thumb-placeholder">
+                                    <span>🏋️</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="exercise-details">
+                                <h3 class="exercise-name">
+                                    <a href="{% url 'exercises:detail' item.exercise.slug %}">
+                                        {{ item.exercise.name }}
+                                    </a>
+                                </h3>
+                                
+                                <div class="exercise-specs">
+                                    <div class="spec-group">
+                                        <span class="spec-label">Series</span>
+                                        <span class="spec-value">{{ item.sets }}</span>
+                                    </div>
+                                    <div class="spec-group">
+                                        <span class="spec-label">Reps/Tiempo</span>
+                                        <span class="spec-value">{{ item.reps }}</span>
+                                    </div>
+                                </div>
+                                
+                                {% if item.notes %}
+                                <div class="exercise-notes">
+                                    <span class="note-icon">📝</span>
+                                    <p>{{ item.notes }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="exercise-action">
+                                <a href="{% url 'exercises:detail' item.exercise.slug %}" class="btn btn-sm btn-outline">
+                                    Ver Demo
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="no-exercises">No hay ejercicios asignados a esta rutina aún.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .workout-detail-section {
+        padding: var(--spacing-xl) 0;
+    }
+
+    .header-content {
+        margin-bottom: var(--spacing-2xl);
+    }
+    
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        color: var(--text-secondary);
+        text-decoration: none;
+        margin-bottom: var(--spacing-lg);
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    
+    .back-link:hover {
+        color: var(--primary-light);
+    }
+
+    .workout-header-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-2xl);
+        padding: var(--spacing-xl);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--spacing-xl);
+        flex-wrap: wrap;
+    }
+    
+    .workout-info-main {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    .workout-title {
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        margin-bottom: var(--spacing-md);
+        line-height: 1.1;
+    }
+    
+    .workout-desc {
+        color: var(--text-secondary);
+        font-size: 1.125rem;
+        margin-bottom: var(--spacing-lg);
+        max-width: 600px;
+        line-height: 1.6;
+    }
+    
+    .workout-tags {
+        display: flex;
+        gap: var(--spacing-sm);
+    }
+    
+    .tag {
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-lg);
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .difficulty-beginner { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .difficulty-intermediate { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .difficulty-advanced { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    
+    .duration-tag {
+        background: rgba(99, 102, 241, 0.2);
+        color: #818cf8;
+    }
+
+    .timeline-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: var(--spacing-xl);
+        color: var(--text-primary);
+        border-left: 4px solid var(--primary-color);
+        padding-left: var(--spacing-md);
+    }
+
+    .timeline-container {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    /* Vertical Line */
+    .timeline-container::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(to bottom, var(--primary-color), transparent);
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: var(--spacing-xl);
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: -2.9rem; /* Adjust based on container padding */
+        top: 0;
+        width: 1.8rem;
+        height: 1.8rem;
+        background: var(--primary-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        font-size: 0.9rem;
+        box-shadow: 0 0 0 4px var(--bg-primary); /* Gives separation from line */
+    }
+
+    .exercise-card {
+        background: var(--bg-tertiary);
+        border-radius: var(--radius-xl);
+        padding: var(--spacing-lg);
+        display: grid;
+        grid-template-columns: 80px 1fr auto;
+        gap: var(--spacing-lg);
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: transform 0.2s ease;
+    }
+    
+    .exercise-card:hover {
+        background: var(--bg-secondary);
+        transform: translateX(5px);
+    }
+    
+    .exercise-thumb {
+        width: 80px;
+        height: 80px;
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: rgba(0,0,0,0.3);
+    }
+    
+    .exercise-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .thumb-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+    }
+    
+    .exercise-name {
+        margin: 0 0 var(--spacing-sm) 0;
+        font-size: 1.25rem;
+    }
+    
+    .exercise-name a {
+        color: var(--text-primary);
+        text-decoration: none;
+    }
+    
+    .exercise-specs {
+        display: flex;
+        gap: var(--spacing-xl);
+        margin-bottom: var(--spacing-sm);
+    }
+    
+    .spec-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .spec-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .spec-value {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--primary-light);
+    }
+    
+    .exercise-notes {
+        display: flex;
+        gap: var(--spacing-xs);
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        background: rgba(0,0,0,0.2);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: var(--radius-md);
+        display: inline-flex;
+    }
+
+    .btn-outline {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-primary);
+        background: transparent;
+    }
+    
+    .btn-outline:hover {
+        border-color: var(--primary-light);
+        color: var(--primary-light);
+    }
+
+    @media (max-width: 768px) {
+        .exercise-card {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+        
+        .exercise-thumb {
+            margin: 0 auto;
+        }
+        
+        .exercise-specs {
+            justify-content: center;
+        }
+        
+        .workout-header-card {
+            flex-direction: column;
+            text-align: center;
+        }
+    }
+    
+    .pulse-animation {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+    }
+</style>
+{% endblock %}

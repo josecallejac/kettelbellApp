@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mis Favoritos - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="hero" style="min-height: 40vh; display: flex; align-items: center; padding-top: 80px;">
+    <div class="hero-overlay"></div>
+    <div class="container">
+        <div class="hero-content" style="text-align: center;">
+            <h1 class="hero-title" style="font-size: 3rem;">
+                Mis <span class="gradient-text">Favoritos</span>
+            </h1>
+            <p class="hero-subtitle">
+                Tu colección personal de ejercicios
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="exercises-section" style="background: #0f172a; padding: 60px 0;">
+    <div class="container">
+        {% if exercises %}
+        <div class="exercises-grid">
+            {% for exercise in exercises %}
+            <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
+                <div class="card-image-wrapper">
+                    {% if exercise.image %}
+                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
+                    {% else %}
+                    <div class="card-image-placeholder">
+                        <span class="placeholder-icon">🏋️</span>
+                    </div>
+                    {% endif %}
+                    <div class="card-badge difficulty-{{ exercise.difficulty }}">
+                        {{ exercise.get_difficulty_display }}
+                    </div>
+                </div>
+                <div class="card-content">
+                    <h4 class="card-title">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
+                            {{ exercise.name }}
+                        </a>
+                    </h4>
+                    <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
+                    <div class="card-footer">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
+                            Ver Detalles <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="text-align: center; padding: 60px 0;">
+            <div class="empty-icon" style="font-size: 4rem; margin-bottom: 20px;">💔</div>
+            <h3 class="empty-title" style="font-size: 1.5rem; color: white; margin-bottom: 10px;">No tienes favoritos aún</h3>
+            <p class="empty-text" style="color: #94a3b8; margin-bottom: 30px;">Explora la biblioteca y guarda tus ejercicios preferidos.</p>
+            <a href="{% url 'exercises:landing' %}" class="btn btn-primary">Explorar Ejercicios</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

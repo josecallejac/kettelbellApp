@@ -1,0 +1,382 @@
+{% extends 'base.html' %} {% load static %} {% block title %}{{ exercise.name }}
+- KettleBell Pro{% endblock %} {% block content %}
+<section class="exercise-detail-section">
+  <div class="container">
+    <div class="detail-header">
+      <a href="{% url 'exercises:landing' %}" class="back-link">
+        <span class="back-icon">←</span> Volver a la biblioteca
+      </a>
+      <h1 class="detail-title gradient-text">{{ exercise.name }}</h1>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-main">
+        <div class="detail-image-wrapper">
+          {% if exercise.image %}
+          <img
+            src="{{ exercise.image.url }}"
+            alt="{{ exercise.name }}"
+            class="detail-image"
+          />
+          {% else %}
+          <div class="detail-image-placeholder">
+            <span class="placeholder-icon">
+              {% if exercise.category == 'strength' %}💪 
+              {% elif exercise.category == 'cardio' %}🔥 
+              {% elif exercise.category == 'flexibility' %}🧘 
+              {% else %}
+              🎯
+              {% endif %}
+            </span>
+          </div>
+          {% endif %}
+          <div class="detail-badge-group">
+            <span class="detail-badge difficulty-{{ exercise.difficulty }}">
+              {{ exercise.get_difficulty_display }}
+            </span>
+            <span class="detail-badge category-{{ exercise.category }}">
+              {{ exercise.get_category_display }}
+            </span>
+          </div>
+          <button class="favorite-btn detail-favorite {% if is_favorite %}active{% endif %}" 
+                  onclick="toggleFavorite(event)"
+                  data-id="{{ exercise.id }}"
+                  {% if not user.is_authenticated %}data-login="true"{% endif %}>
+              <span class="heart-icon">♥</span>
+          </button>
+        </div>
+
+        <div class="detail-info-card">
+          <h2 class="info-title">Descripción</h2>
+          <p class="info-text">{{ exercise.description }}</p>
+        </div>
+
+        <div class="detail-info-card">
+          <h2 class="info-title">Instrucciones</h2>
+          <div class="instructions-list">
+            {{ exercise.instructions|linebreaks }}
+          </div>
+        </div>
+      </div>
+
+      <aside class="detail-sidebar">
+        <div class="stats-card">
+          <h3 class="stats-title">Detalles del Ejercicio</h3>
+          <div class="stat-item">
+            <span class="stat-label">⏱️ Duración:</span>
+            <span class="stat-value"
+              >{% if exercise.duration_minutes %}{{ exercise.duration_minutes }}
+              min{% else %}N/A{% endif %}</span
+            >
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">🔥 Calorías:</span>
+            <span class="stat-value"
+              >{% if exercise.calories_burned %}{{ exercise.calories_burned }}
+              kcal{% else %}N/A{% endif %}</span
+            >
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">📈 Nivel:</span>
+            <span class="stat-value"
+              >{{ exercise.get_difficulty_display }}</span
+            >
+          </div>
+        </div>
+
+        {% if exercise.benefits %}
+        <div class="stats-card benefits-card">
+          <h3 class="stats-title">Beneficios</h3>
+          <p class="benefits-text">{{ exercise.benefits }}</p>
+        </div>
+        {% endif %} {% if exercise.video_url %}
+        <div class="video-cta-card">
+          <h3 class="stats-title">Ver en Video</h3>
+          <p class="video-text">Mira la técnica correcta en video.</p>
+          <a
+            href="{{ exercise.video_url }}"
+            target="_blank"
+            class="btn btn-primary btn-full"
+          >
+            Watch on Video 📺
+          </a>
+        </div>
+        {% endif %}
+      </aside>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Additional styles for Detail Page */
+  .exercise-detail-section {
+    padding: var(--spacing-xl) 0;
+  }
+
+  .detail-header {
+    margin-bottom: var(--spacing-xl);
+  }
+
+  .back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+    transition: color var(--transition-base);
+  }
+
+  .back-link:hover {
+    color: var(--primary-light);
+  }
+
+  .detail-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--spacing-xl);
+  }
+
+  .detail-image-wrapper {
+    position: relative;
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    margin-bottom: var(--spacing-xl);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 480px;
+  }
+
+  .detail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .detail-image-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  }
+
+  .detail-badge-group {
+    position: absolute;
+    bottom: var(--spacing-md);
+    left: var(--spacing-md);
+    display: flex;
+    gap: var(--spacing-sm);
+  }
+
+  .detail-badge {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-lg);
+    font-weight: 700;
+    font-size: 0.875rem;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .category-strength {
+    background: rgba(99, 102, 241, 0.8);
+    color: white;
+  }
+  .category-cardio {
+    background: rgba(236, 72, 153, 0.8);
+    color: white;
+  }
+  .category-flexibility {
+    background: rgba(16, 185, 129, 0.8);
+    color: white;
+  }
+  .category-full_body {
+    background: rgba(245, 158, 11, 0.8);
+    color: white;
+  }
+
+  .detail-info-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .info-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-md);
+    color: var(--primary-light);
+  }
+
+  .info-text {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+  }
+
+  .instructions-list {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+  }
+
+  /* Sidebar Styles */
+  .stats-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .stats-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-xs);
+    border-bottom: 2px solid var(--primary-color);
+    display: inline-block;
+  }
+
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-xs) 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .stat-label {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .stat-value {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .benefits-card {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.1) 0%,
+      rgba(236, 72, 153, 0.1) 100%
+    );
+  }
+
+  .benefits-text {
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .video-cta-card {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+    text-align: center;
+    border: 1px solid var(--primary-color);
+  }
+
+  .btn-full {
+    width: 100%;
+    margin-top: var(--spacing-md);
+  }
+
+  @media (max-width: 992px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .detail-image-wrapper {
+      height: 350px;
+    }
+
+    .detail-sidebar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--spacing-md);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .detail-sidebar {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Favorite Button Styles */
+  .favorite-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(30, 41, 59, 0.6);
+    border: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
+    z-index: 10;
+  }
+
+  .favorite-btn:hover {
+    background: rgba(30, 41, 59, 0.9);
+    transform: scale(1.1);
+  }
+
+  .favorite-btn .heart-icon {
+    color: white;
+    font-size: 1.5rem;
+    line-height: 1;
+    transition: color 0.3s ease;
+  }
+
+  .favorite-btn.active .heart-icon {
+    color: #ef4444;
+  }
+</style>
+
+<script>
+function toggleFavorite(event) {
+    event.preventDefault();
+    
+    const btn = event.currentTarget;
+    
+    if (btn.dataset.login) {
+        window.location.href = "{% url 'exercises:login' %}";
+        return;
+    }
+
+    const bg_id = btn.dataset.id;
+
+    fetch("{% url 'exercises:toggle_favorite' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({exercise_id: bg_id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            if (data.is_favorite) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

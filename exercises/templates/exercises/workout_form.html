@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crear Entrenamiento - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="create-workout-section">
+    <div class="container-sm">
+        <header class="section-header">
+            <h1 class="gradient-text">Crear Nueva Rutina</h1>
+            <p class="section-subtitle">Diseña tu entrenamiento personalizado.</p>
+        </header>
+
+        <form method="post" class="create-form">
+            {% csrf_token %}
+            
+            <div class="form-card main-info">
+                <h2 class="card-title">Información General</h2>
+                <div class="form-group">
+                    <label for="{{ form.title.id_for_label }}">Título de la Rutina</label>
+                    {{ form.title }}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.description.id_for_label }}">Descripción</label>
+                    {{ form.description }}
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="{{ form.difficulty.id_for_label }}">Dificultad</label>
+                        {{ form.difficulty }}
+                    </div>
+                    
+                    <div class="form-group half">
+                        <label for="{{ form.estimated_duration.id_for_label }}">Duración (min)</label>
+                        {{ form.estimated_duration }}
+                    </div>
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    {{ form.is_public }}
+                    <label for="{{ form.is_public.id_for_label }}">Hacer pública esta rutina</label>
+                </div>
+            </div>
+            
+            <div class="form-card exercises-list">
+                <h2 class="card-title">Ejercicios</h2>
+                {{ formset.management_form }}
+                
+                <div id="formset-container">
+                    {% for form in formset %}
+                    <div class="exercise-form-row">
+                        {{ form.id }}
+                        <div class="form-row-header">
+                            <span class="row-number">#{{ forloop.counter }}</span>
+                            {% if formset.can_delete %}
+                                <div class="delete-wrapper">
+                                    {{ form.DELETE }}
+                                    <label class="delete-label">Eliminar</label>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="exercise-inputs">
+                            <div class="form-group full">
+                                <label>Ejercicio</label>
+                                {{ form.exercise }}
+                            </div>
+                            
+                            <div class="form-row three-cols">
+                                <div class="form-group">
+                                    <label>Series</label>
+                                    {{ form.sets }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Reps/Tiempo</label>
+                                    {{ form.reps }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Notas</label>
+                                    {{ form.notes }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <button type="button" id="add-exercise-btn" class="btn btn-secondary btn-full">
+                    + Añadir Ejercicio
+                </button>
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% url 'exercises:workout_list' %}" class="btn btn-text">Cancelar</a>
+                <button type="submit" class="btn btn-primary btn-lg">Guardar Rutina</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+<!-- Empty Form Template for JS -->
+<div id="empty-form" style="display:none;">
+    <div class="exercise-form-row">
+        <input type="hidden" name="exercises-__prefix__-id" id="id_exercises-__prefix__-id">
+        <div class="form-row-header">
+            <span class="row-number">#</span>
+            <div class="delete-wrapper">
+                <input type="checkbox" name="exercises-__prefix__-DELETE" id="id_exercises-__prefix__-DELETE">
+                <label class="delete-label">Eliminar</label>
+            </div>
+        </div>
+        
+        <div class="exercise-inputs">
+            <div class="form-group full">
+                <label>Ejercicio</label>
+                {{ formset.empty_form.exercise }}
+            </div>
+            
+            <div class="form-row three-cols">
+                <div class="form-group">
+                    <label>Series</label>
+                    {{ formset.empty_form.sets }}
+                </div>
+                <div class="form-group">
+                    <label>Reps/Tiempo</label>
+                    {{ formset.empty_form.reps }}
+                </div>
+                <div class="form-group">
+                    <label>Notas</label>
+                    {{ formset.empty_form.notes }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .create-workout-section {
+        padding: var(--spacing-xl) 0;
+    }
+    
+    .container-sm {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 var(--spacing-md);
+    }
+    
+    .section-header {
+        text-align: center;
+        margin-bottom: var(--spacing-xl);
+    }
+    
+    .form-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-xl);
+        padding: var(--spacing-xl);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: var(--spacing-lg);
+    }
+    
+    .card-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: var(--spacing-lg);
+        color: var(--primary-light);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: var(--spacing-sm);
+    }
+    
+    .form-group {
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .form-group label {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        background: var(--bg-tertiary);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-lg);
+        transition: border-color 0.2s;
+    }
+    
+    .form-input:focus, .form-select:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+    
+    .form-row {
+        display: flex;
+        gap: var(--spacing-lg);
+    }
+    
+    .form-row.half .form-group {
+        flex: 1;
+    }
+    
+    .three-cols .form-group {
+        flex: 1;
+    }
+    
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+    
+    .checkbox-group label {
+        margin-bottom: 0;
+    }
+    
+    /* Dynamic Formset Styles */
+    .exercise-form-row {
+        background: rgba(0,0,0,0.2);
+        padding: var(--spacing-lg);
+        border-radius: var(--radius-lg);
+        margin-bottom: var(--spacing-lg);
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .form-row-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .row-number {
+        font-weight: 700;
+        color: var(--primary-light);
+    }
+    
+    .delete-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: #ef4444;
+    }
+    
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--spacing-md);
+        margin-top: var(--spacing-xl);
+    }
+    
+    .btn-text {
+        color: var(--text-secondary);
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius-lg);
+        text-decoration: none;
+    }
+    
+    .btn-text:hover {
+        background: rgba(255,255,255,0.05);
+        color: white;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const formsetContainer = document.getElementById('formset-container');
+        const addBtn = document.getElementById('add-exercise-btn');
+        const totalForms = document.getElementById('id_exercises-TOTAL_FORMS');
+        const emptyFormTemplate = document.getElementById('empty-form').innerHTML;
+        
+        addBtn.addEventListener('click', function() {
+            const formIdx = totalForms.value;
+            const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx);
+            
+            const div = document.createElement('div');
+            div.innerHTML = newFormHtml;
+            const newRow = div.firstElementChild;
+            
+            // Update row number visually
+            newRow.querySelector('.row-number').innerText = '#' + (parseInt(formIdx) + 1);
+            
+            formsetContainer.appendChild(newRow);
+            totalForms.value = parseInt(formIdx) + 1;
+        });
+    });
+</script>
+{% endblock %}

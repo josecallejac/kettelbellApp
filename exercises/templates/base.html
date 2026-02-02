@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}KettleBell Pro - Ejercicios de Pesas Rusas{% endblock %}
+    </title>
+    <meta
+      name="description"
+      content="Descubre los mejores ejercicios con kettlebell para mejorar tu fuerza, resistencia y flexibilidad"
+    />
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="container">
+        <div class="nav-content">
+          <a href="/" class="logo">
+            <span class="logo-icon">🏋️</span>
+            <span class="logo-text">KettleBell Pro</span>
+          </a>
+          <div class="nav-links">
+            <a href="{% url 'exercises:landing' %}" class="nav-link">Inicio</a>
+            <a href="{% url 'exercises:workout_list' %}" class="nav-link">Entrenamientos</a>
+            {% if user.is_authenticated %}
+            <a href="{% url 'exercises:dashboard' %}" class="nav-link">Mi Panel</a>
+            <form action="{% url 'exercises:logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="nav-link logout-btn">Cerrar Sesión</button>
+            </form>
+            {% else %}
+            <a href="{% url 'exercises:login' %}" class="nav-link">Iniciar Sesión</a>
+            <a href="{% url 'exercises:register' %}" class="nav-link nav-link-cta">Registrarse</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main>{% block content %} {% endblock %}</main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h3 class="footer-title">KettleBell Pro</h3>
+            <p class="footer-text">
+              Tu guía definitiva para entrenamientos con pesas rusas
+            </p>
+          </div>
+          <div class="footer-section">
+            <h4 class="footer-heading">Recursos</h4>
+            <ul class="footer-links">
+              <li><a href="#exercises">Ejercicios</a></li>
+              <li><a href="/admin">Panel Admin</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h4 class="footer-heading">Categorías</h4>
+            <ul class="footer-links">
+              <li><a href="#strength">Fuerza</a></li>
+              <li><a href="#cardio">Cardio</a></li>
+              <li><a href="#flexibility">Flexibilidad</a></li>
+              <li><a href="#full-body">Cuerpo Completo</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2026 KettleBell Pro. Todos los derechos reservados.</p>
+        </div>
+      </div>
+    </footer>
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

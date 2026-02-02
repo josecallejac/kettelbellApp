@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi Panel - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="dashboard-section">
+    <div class="container">
+        <header class="dashboard-header">
+            <h1 class="dashboard-title">Hola, <span class="gradient-text">{{ user.username }}</span> 👋</h1>
+            <p class="dashboard-subtitle">Aquí tienes un resumen de tu actividad y favoritos.</p>
+        </header>
+
+        <!-- Stats Overview -->
+        <div class="mb-8">
+            <div class="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-2xl p-6 border border-blue-500/30 flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-white mb-2">¿No sabes qué entrenar hoy?</h2>
+                    <p class="text-gray-300">Deja que nuestra IA diseñe la rutina perfecta para ti en segundos.</p>
+                </div>
+                <a href="{% url 'exercises:generate_routine' %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg flex items-center gap-2">
+                    <span>✨</span> Generar Rutina
+                </a>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-icon">🏋️</span>
+                <div class="stat-info">
+                    <span class="stat-value">{{ total_workouts }}</span>
+                    <span class="stat-label">Entrenamientos Completados</span>
+                </div>
+            </div>
+            <!-- Future stats could go here like 'Total Minutes', 'Calories Burned' -->
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Recent Activity -->
+            <div class="dashboard-column">
+                <h2 class="column-title">Actividad Reciente</h2>
+                <div class="activity-list">
+                    {% for log in recent_logs %}
+                    <div class="activity-item">
+                        <div class="activity-icon">✅</div>
+                        <div class="activity-content">
+                            <h3 class="activity-name">{{ log.workout.title }}</h3>
+                            <span class="activity-date">{{ log.completed_at|date:"d M, Y - H:i" }}</span>
+                        </div>
+                        <a href="{% url 'exercises:workout_detail' log.workout.slug %}" class="btn btn-sm btn-outline">Ver</a>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state-card">
+                        <p>Aún no has completado ningún entrenamiento.</p>
+                        <a href="{% url 'exercises:workout_list' %}" class="btn btn-primary btn-sm">Explorar Rutinas</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Favorites -->
+            <div class="dashboard-column">
+                <h2 class="column-title">Tus Favoritos</h2>
+                <div class="favorites-grid-mini">
+                    {% for exercise in favorite_exercises %}
+                    <a href="{% url 'exercises:detail' exercise.slug %}" class="favorite-mini-card">
+                        <div class="mini-thumb">
+                            {% if exercise.image %}
+                            <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}">
+                            {% else %}
+                            <span>✨</span>
+                            {% endif %}
+                        </div>
+                        <div class="mini-info">
+                            <span class="mini-name">{{ exercise.name }}</span>
+                            <span class="mini-cat">{{ exercise.get_category_display }}</span>
+                        </div>
+                    </a>
+                    {% empty %}
+                    <div class="empty-state-card">
+                        <p>No tienes ejercicios favoritos guardados.</p>
+                        <a href="{% url 'exercises:landing' %}" class="btn btn-secondary btn-sm">Ver Ejercicios</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .dashboard-section {
+        padding: var(--spacing-xl) 0;
+    }
+
+    .dashboard-header {
+        margin-bottom: var(--spacing-xl);
+    }
+    
+    .dashboard-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: var(--spacing-xs);
+    }
+    
+    .dashboard-subtitle {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--spacing-lg);
+        margin-bottom: var(--spacing-2xl);
+    }
+    
+    .stat-card {
+        background: var(--bg-secondary);
+        padding: var(--spacing-lg);
+        border-radius: var(--radius-xl);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-lg);
+    }
+    
+    .stat-icon {
+        font-size: 2.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-lg);
+    }
+    
+    .stat-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-light);
+        line-height: 1;
+        margin-bottom: 4px;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--spacing-2xl);
+    }
+    
+    .column-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: var(--spacing-lg);
+        padding-bottom: var(--spacing-xs);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Activity List */
+    .activity-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+    
+    .activity-item {
+        background: var(--bg-secondary);
+        padding: var(--spacing-md);
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: transform 0.2s;
+    }
+    
+    .activity-item:hover {
+        transform: translateX(5px);
+        background: var(--bg-tertiary);
+    }
+    
+    .activity-icon {
+        font-size: 1.5rem;
+    }
+    
+    .activity-content {
+        flex: 1;
+    }
+    
+    .activity-name {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+    
+    .activity-date {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    /* Favorites Grid */
+    .favorites-grid-mini {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: var(--spacing-md);
+    }
+    
+    .favorite-mini-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-md);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        text-decoration: none;
+        color: var(--text-primary);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.2s;
+    }
+    
+    .favorite-mini-card:hover {
+        background: var(--bg-tertiary);
+        transform: translateY(-2px);
+    }
+    
+    .mini-thumb {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    
+    .mini-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .mini-info {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    
+    .mini-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .mini-cat {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .empty-state-card {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-lg);
+        text-align: center;
+        border: 1px dashed rgba(255, 255, 255, 0.1);
+    }
+    
+    .empty-state-card p {
+        color: var(--text-muted);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}
