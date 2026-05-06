@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="collection-section">
+    <div class="container">
+        <header class="collection-header">
+            <a href="{% url 'exercises:landing' %}" class="back-link">
+                <span class="back-icon">&larr;</span> Volver a la biblioteca
+            </a>
+            <div class="detail-kicker">{{ page_kicker }}</div>
+            <h1 class="section-title gradient-text">{{ page_title }}</h1>
+            <p class="section-subtitle">{{ page_subtitle }}</p>
+        </header>
+
+        {% if exercises %}
+        <div class="exercises-grid">
+            {% for exercise in exercises %}
+            <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
+                <div class="card-image-wrapper">
+                    {% if exercise.image %}
+                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
+                    {% else %}
+                    <div class="card-image-placeholder">
+                        <span class="placeholder-icon">&#127947;</span>
+                    </div>
+                    {% endif %}
+                    <div class="card-badge difficulty-{{ exercise.difficulty }}">
+                        {{ exercise.get_difficulty_display }}
+                    </div>
+                    <button class="favorite-btn {% if exercise.id in favorites_ids %}active{% endif %}"
+                            onclick="toggleFavorite(event)"
+                            data-id="{{ exercise.id }}"
+                            {% if not user.is_authenticated %}data-login="true"{% endif %}>
+                        <span class="heart-icon">&hearts;</span>
+                    </button>
+                </div>
+                <div class="card-content">
+                    <h4 class="card-title">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
+                            {{ exercise.name }}
+                        </a>
+                    </h4>
+                    <p class="card-description">{{ exercise.description|truncatewords:18 }}</p>
+                    <div class="card-footer">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
+                            Ver detalles <span class="arrow">&rarr;</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#128203;</div>
+            <h3 class="empty-title">{{ empty_message }}</h3>
+            <a href="{% url 'exercises:landing' %}" class="btn btn-primary">Volver</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<style>
+    .collection-section { padding: var(--spacing-xl) 0 var(--spacing-2xl); }
+    .collection-header { text-align: center; max-width: 760px; margin: 0 auto var(--spacing-2xl); }
+    .back-link { color: var(--text-secondary); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: var(--spacing-xs); margin-bottom: var(--spacing-md); transition: color var(--transition-base); }
+    .back-link:hover { color: var(--primary-light); }
+    .detail-kicker { color: var(--accent-color); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .favorite-btn { position: absolute; top: 10px; right: 10px; background: rgba(30, 41, 59, 0.6); border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); transition: all 0.3s ease; z-index: 10; }
+    .favorite-btn:hover { background: rgba(30, 41, 59, 0.9); transform: scale(1.1); }
+    .favorite-btn .heart-icon { color: white; font-size: 1.2rem; line-height: 1; transition: color 0.3s ease; }
+    .favorite-btn.active .heart-icon { color: #ef4444; }
+</style>
+
+<script>
+function toggleFavorite(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const btn = event.currentTarget;
+
+    if (btn.dataset.login) {
+        window.location.href = "{% url 'exercises:login' %}";
+        return;
+    }
+
+    fetch("{% url 'exercises:toggle_favorite' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ exercise_id: btn.dataset.id })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            btn.classList.toggle('active', data.is_favorite);
+        }
+    });
+}
+</script>
+{% endblock %}

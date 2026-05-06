@@ -7,16 +7,24 @@
     <div class="hero-overlay"></div>
     <div class="container">
         <div class="hero-content">
+            <span class="hero-kicker">Kettlebell training</span>
             <h1 class="hero-title">
-                Transforma Tu Cuerpo con
-                <span class="gradient-text">Kettlebells</span>
+                Entrena fuerte.
+                <span class="gradient-text">Muevete mejor.</span>
             </h1>
+            <div class="hero-side">
             <p class="hero-subtitle">
-                Descubre ejercicios efectivos de pesas rusas para desarrollar fuerza, resistencia y movilidad
+                Biblioteca tecnica, rutinas guiadas y ejercicios con pesas rusas para desarrollar fuerza, resistencia y movilidad sin perder control.
             </p>
             <div class="hero-cta">
                 <a href="#exercises" class="btn btn-primary">Explorar Ejercicios</a>
                 <a href="{% url 'exercises:generate_routine' %}" class="btn btn-secondary">Generar Rutina IA ✨</a>
+            </div>
+            <div class="hero-proof">
+                <span>{{ all_exercises.count }} ejercicios</span>
+                <span>4 categorias</span>
+                <span>3 niveles</span>
+            </div>
             </div>
         </div>
     </div>
@@ -26,21 +34,21 @@
 <section class="stats-section">
     <div class="container">
         <div class="stats-grid">
-            <div class="stat-card">
+            <a href="{% url 'exercises:exercise_list' %}" class="stat-card stat-card-link">
                 <div class="stat-icon">💪</div>
                 <div class="stat-number">{{ all_exercises.count }}</div>
                 <div class="stat-label">Ejercicios Totales</div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="{% url 'exercises:category_list' %}" class="stat-card stat-card-link">
                 <div class="stat-icon">🔥</div>
                 <div class="stat-number">4</div>
                 <div class="stat-label">Categorías</div>
-            </div>
-            <div class="stat-card">
+            </a>
+            <a href="{% url 'exercises:difficulty_list' %}" class="stat-card stat-card-link">
                 <div class="stat-icon">🎯</div>
                 <div class="stat-number">3</div>
                 <div class="stat-label">Niveles</div>
-            </div>
+            </a>
         </div>
     </div>
 </section>

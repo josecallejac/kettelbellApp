@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="taxonomy-section">
+    <div class="container">
+        <header class="taxonomy-header">
+            <a href="{% url 'exercises:landing' %}" class="back-link">
+                <span class="back-icon">&larr;</span> Volver a la biblioteca
+            </a>
+            <div class="detail-kicker">{{ page_kicker }}</div>
+            <h1 class="section-title gradient-text">{{ page_title }}</h1>
+            <p class="section-subtitle">{{ page_subtitle }}</p>
+        </header>
+
+        <div class="taxonomy-grid">
+            {% for card in cards %}
+            <a href="{% url url_name card.value %}" class="taxonomy-card">
+                <div class="taxonomy-icon">{{ card.icon|safe }}</div>
+                <div class="taxonomy-number">{{ card.count }}</div>
+                <h2 class="taxonomy-title">{{ card.label }}</h2>
+                <p class="taxonomy-meta">{{ card.count }} {{ count_label }}</p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<style>
+    .taxonomy-section { padding: var(--spacing-xl) 0 var(--spacing-2xl); }
+    .taxonomy-header { text-align: center; max-width: 760px; margin: 0 auto var(--spacing-2xl); }
+    .back-link { color: var(--text-secondary); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: var(--spacing-xs); margin-bottom: var(--spacing-md); transition: color var(--transition-base); }
+    .back-link:hover { color: var(--primary-light); }
+    .detail-kicker { color: var(--accent-color); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .taxonomy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--spacing-lg); }
+    .taxonomy-card { min-height: 250px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: var(--radius-xl); padding: var(--spacing-xl); text-align: center; text-decoration: none; color: var(--text-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all var(--transition-base); }
+    .taxonomy-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.08); border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2); }
+    .taxonomy-icon { font-size: 3rem; line-height: 1; margin-bottom: var(--spacing-sm); filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.5)); }
+    .taxonomy-number { font-size: 3rem; font-weight: 900; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; margin-bottom: var(--spacing-xs); }
+    .taxonomy-title { font-size: 1.35rem; font-weight: 800; margin-bottom: 0.25rem; }
+    .taxonomy-meta { color: var(--text-muted); font-size: 0.95rem; }
+</style>
+{% endblock %}

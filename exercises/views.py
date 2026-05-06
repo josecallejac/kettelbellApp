@@ -1,14 +1,34 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_POST
+from django.db.models import Count
 from .models import Exercise, Favorite, Workout, WorkoutLog
 from .utils import RoutineGenerator
 from .forms import CustomUserCreationForm, CustomAuthenticationForm
 import logging
 
 logger = logging.getLogger(__name__)
+
+CATEGORY_ICONS = {
+    'strength': '&#128170;',
+    'cardio': '&#128293;',
+    'flexibility': '&#129496;',
+    'full_body': '&#127919;',
+}
+
+DIFFICULTY_ICONS = {
+    'beginner': '&#127793;',
+    'intermediate': '&#9889;',
+    'advanced': '&#128640;',
+}
+
+
+def get_favorites_ids(request):
+    if request.user.is_authenticated:
+        return list(request.user.favorites.values_list('exercise_id', flat=True))
+    return []
 
 def register_view(request):
     if request.method == 'POST':
@@ -66,9 +86,7 @@ def landing_page(request):
     exercises = Exercise.objects.all()
     video_exercises = exercises.exclude(video_url__isnull=True).exclude(video_url__exact="")[:6]
     
-    favorites_ids = []
-    if request.user.is_authenticated:
-        favorites_ids = list(request.user.favorites.values_list('exercise_id', flat=True))
+    favorites_ids = get_favorites_ids(request)
 
     # Organize exercises by category
     exercises_by_category = {
@@ -86,6 +104,94 @@ def landing_page(request):
     }
     
     return render(request, 'exercises/landing.html', context)
+
+def exercise_list(request):
+    exercises = Exercise.objects.all()
+    context = {
+        'exercises': exercises,
+        'favorites_ids': get_favorites_ids(request),
+        'page_title': 'Todos los ejercicios',
+        'page_subtitle': 'Biblioteca completa de ejercicios con kettlebell.',
+        'page_kicker': 'Ejercicios',
+        'empty_message': 'No hay ejercicios disponibles todavia.',
+    }
+    return render(request, 'exercises/exercise_collection.html', context)
+
+def category_list(request):
+    counts = dict(
+        Exercise.objects.values('category').annotate(total=Count('id')).values_list('category', 'total')
+    )
+    cards = [
+        {
+            'value': value,
+            'label': label,
+            'count': counts.get(value, 0),
+            'icon': CATEGORY_ICONS.get(value, '&#127919;'),
+        }
+        for value, label in Exercise.CATEGORY_CHOICES
+    ]
+    return render(request, 'exercises/taxonomy_overview.html', {
+        'page_title': 'Categorias',
+        'page_subtitle': 'Elige una categoria para ver sus ejercicios.',
+        'page_kicker': '4 grupos',
+        'cards': cards,
+        'url_name': 'exercises:category_detail',
+        'count_label': 'ejercicios',
+    })
+
+def category_detail(request, category):
+    category_labels = dict(Exercise.CATEGORY_CHOICES)
+    if category not in category_labels:
+        raise Http404("Categoria no encontrada")
+
+    exercises = Exercise.objects.filter(category=category)
+    context = {
+        'exercises': exercises,
+        'favorites_ids': get_favorites_ids(request),
+        'page_title': category_labels[category],
+        'page_subtitle': 'Ejercicios filtrados por categoria.',
+        'page_kicker': 'Categoria',
+        'empty_message': 'No hay ejercicios en esta categoria todavia.',
+    }
+    return render(request, 'exercises/exercise_collection.html', context)
+
+def difficulty_list(request):
+    counts = dict(
+        Exercise.objects.values('difficulty').annotate(total=Count('id')).values_list('difficulty', 'total')
+    )
+    cards = [
+        {
+            'value': value,
+            'label': label,
+            'count': counts.get(value, 0),
+            'icon': DIFFICULTY_ICONS.get(value, '&#127919;'),
+        }
+        for value, label in Exercise.DIFFICULTY_CHOICES
+    ]
+    return render(request, 'exercises/taxonomy_overview.html', {
+        'page_title': 'Niveles',
+        'page_subtitle': 'Elige un nivel para ver los ejercicios recomendados.',
+        'page_kicker': '3 niveles',
+        'cards': cards,
+        'url_name': 'exercises:difficulty_detail',
+        'count_label': 'ejercicios',
+    })
+
+def difficulty_detail(request, difficulty):
+    difficulty_labels = dict(Exercise.DIFFICULTY_CHOICES)
+    if difficulty not in difficulty_labels:
+        raise Http404("Nivel no encontrado")
+
+    exercises = Exercise.objects.filter(difficulty=difficulty)
+    context = {
+        'exercises': exercises,
+        'favorites_ids': get_favorites_ids(request),
+        'page_title': difficulty_labels[difficulty],
+        'page_subtitle': 'Ejercicios filtrados por nivel.',
+        'page_kicker': 'Nivel',
+        'empty_message': 'No hay ejercicios en este nivel todavia.',
+    }
+    return render(request, 'exercises/exercise_collection.html', context)
 
 def exercise_detail(request, slug):
     exercise = get_object_or_404(Exercise, slug=slug)

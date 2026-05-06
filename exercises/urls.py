@@ -5,6 +5,11 @@ app_name = 'exercises'
 
 urlpatterns = [
     path('', views.landing_page, name='landing'),
+    path('exercises/', views.exercise_list, name='exercise_list'),
+    path('categories/', views.category_list, name='category_list'),
+    path('categories/<slug:category>/', views.category_detail, name='category_detail'),
+    path('levels/', views.difficulty_list, name='difficulty_list'),
+    path('levels/<slug:difficulty>/', views.difficulty_detail, name='difficulty_detail'),
     path('exercise/<slug:slug>/', views.exercise_detail, name='detail'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),

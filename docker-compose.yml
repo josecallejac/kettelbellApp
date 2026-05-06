@@ -1,0 +1,53 @@
+services:
+  web:
+    container_name: kettlebell_web
+    build: .
+    command: gunicorn kettelbell.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SECRET_KEY: local-docker-change-me
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      POSTGRES_DB: kettlebell
+      POSTGRES_USER: kettlebell
+      POSTGRES_PASSWORD: kettlebell
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    container_name: kettlebell_postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kettlebell
+      POSTGRES_USER: kettlebell
+      POSTGRES_PASSWORD: kettlebell
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kettlebell -d kettlebell"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    container_name: kettlebell_adminer
+    image: adminer:4
+    ports:
+      - "8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
