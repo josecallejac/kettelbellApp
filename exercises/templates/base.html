@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -18,26 +18,51 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#6366f1',
+              secondary: '#ec4899',
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body>
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Navegacion principal">
       <div class="container">
         <div class="nav-content">
-          <a href="/" class="logo">
-            <span class="logo-icon">🏋️</span>
-            <span class="logo-text">KettleBell Pro</span>
+          <a href="{% url 'exercises:landing' %}" class="logo" aria-label="Ir al inicio">
+            <span class="logo-mark">KB</span>
+            <span class="logo-copy">
+              <span class="logo-text">KettleBell Pro</span>
+              <span class="logo-tagline">Fuerza con tecnica</span>
+            </span>
           </a>
-          <div class="nav-links">
+
+          <button class="nav-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="site-navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+
+          <div class="nav-links" id="site-navigation">
             <a href="{% url 'exercises:landing' %}" class="nav-link">Inicio</a>
             <a href="{% url 'exercises:workout_list' %}" class="nav-link">Entrenamientos</a>
+            <a href="{% url 'exercises:generate_routine' %}" class="nav-link nav-link-feature">Rutina IA</a>
             {% if user.is_authenticated %}
             <a href="{% url 'exercises:dashboard' %}" class="nav-link">Mi Panel</a>
-            <form action="{% url 'exercises:logout' %}" method="post" style="display: inline;">
+            <form action="{% url 'exercises:logout' %}" method="post" class="nav-form">
                 {% csrf_token %}
-                <button type="submit" class="nav-link logout-btn">Cerrar Sesión</button>
+                <button type="submit" class="nav-link logout-btn">Cerrar sesion</button>
             </form>
             {% else %}
-            <a href="{% url 'exercises:login' %}" class="nav-link">Iniciar Sesión</a>
+            <a href="{% url 'exercises:login' %}" class="nav-link">Iniciar sesion</a>
             <a href="{% url 'exercises:register' %}" class="nav-link nav-link-cta">Registrarse</a>
             {% endif %}
           </div>
@@ -49,35 +74,76 @@
 
     <footer class="footer">
       <div class="container">
+        <div class="footer-cta">
+          <div>
+            <span class="footer-eyebrow">Entrena con intencion</span>
+            <h2>Domina la kettlebell paso a paso.</h2>
+          </div>
+          <a href="{% url 'exercises:generate_routine' %}" class="btn btn-primary">Crear rutina</a>
+        </div>
+
         <div class="footer-content">
-          <div class="footer-section">
-            <h3 class="footer-title">KettleBell Pro</h3>
+          <div class="footer-section footer-brand">
+            <a href="{% url 'exercises:landing' %}" class="footer-logo">
+              <span class="logo-mark">KB</span>
+              <span>KettleBell Pro</span>
+            </a>
             <p class="footer-text">
-              Tu guía definitiva para entrenamientos con pesas rusas
+              Biblioteca de ejercicios, rutinas y consejos tecnicos para entrenar con pesas rusas de forma mas clara, segura y efectiva.
             </p>
           </div>
+
           <div class="footer-section">
             <h4 class="footer-heading">Recursos</h4>
             <ul class="footer-links">
-              <li><a href="#exercises">Ejercicios</a></li>
+              <li><a href="{% url 'exercises:landing' %}#exercises">Biblioteca</a></li>
+              <li><a href="{% url 'exercises:workout_list' %}">Entrenamientos</a></li>
+              <li><a href="{% url 'exercises:generate_routine' %}">Rutina IA</a></li>
               <li><a href="/admin">Panel Admin</a></li>
             </ul>
           </div>
+
           <div class="footer-section">
-            <h4 class="footer-heading">Categorías</h4>
+            <h4 class="footer-heading">Categorias</h4>
             <ul class="footer-links">
-              <li><a href="#strength">Fuerza</a></li>
-              <li><a href="#cardio">Cardio</a></li>
-              <li><a href="#flexibility">Flexibilidad</a></li>
-              <li><a href="#full-body">Cuerpo Completo</a></li>
+              <li><a href="{% url 'exercises:landing' %}#strength">Fuerza</a></li>
+              <li><a href="{% url 'exercises:landing' %}#cardio">Cardio</a></li>
+              <li><a href="{% url 'exercises:landing' %}#flexibility">Flexibilidad</a></li>
+              <li><a href="{% url 'exercises:landing' %}#full-body">Cuerpo completo</a></li>
+            </ul>
+          </div>
+
+          <div class="footer-section">
+            <h4 class="footer-heading">Enfoque</h4>
+            <ul class="footer-points">
+              <li>Tecnica antes que ego</li>
+              <li>Progresion gradual</li>
+              <li>Movimiento fuerte y seguro</li>
             </ul>
           </div>
         </div>
+
         <div class="footer-bottom">
-          <p>© 2026 KettleBell Pro. Todos los derechos reservados.</p>
+          <p>&copy; 2026 KettleBell Pro. Todos los derechos reservados.</p>
+          <a href="{% url 'exercises:landing' %}#exercises">Explorar ejercicios</a>
         </div>
       </div>
     </footer>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const toggle = document.querySelector('.nav-toggle');
+        const navigation = document.getElementById('site-navigation');
+
+        if (!toggle || !navigation) return;
+
+        toggle.addEventListener('click', function() {
+          const isOpen = navigation.classList.toggle('is-open');
+          toggle.classList.toggle('is-open', isOpen);
+          toggle.setAttribute('aria-expanded', String(isOpen));
+        });
+      });
+    </script>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

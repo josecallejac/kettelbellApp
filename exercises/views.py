@@ -64,6 +64,7 @@ def favorites_list(request):
 
 def landing_page(request):
     exercises = Exercise.objects.all()
+    video_exercises = exercises.exclude(video_url__isnull=True).exclude(video_url__exact="")[:6]
     
     favorites_ids = []
     if request.user.is_authenticated:
@@ -81,6 +82,7 @@ def landing_page(request):
         'exercises_by_category': exercises_by_category,
         'all_exercises': exercises,
         'favorites_ids': favorites_ids,
+        'video_exercises': video_exercises,
     }
     
     return render(request, 'exercises/landing.html', context)
@@ -90,10 +92,57 @@ def exercise_detail(request, slug):
     is_favorite = False
     if request.user.is_authenticated:
         is_favorite = Favorite.objects.filter(user=request.user, exercise=exercise).exists()
-        
+
+    def split_lines(value):
+        return [line.strip() for line in (value or '').splitlines() if line.strip()]
+
+    instruction_steps = split_lines(exercise.instructions)
+    setup_tips = split_lines(exercise.setup_tips)
+    common_mistakes = split_lines(exercise.common_mistakes)
+    progressions = split_lines(exercise.progressions)
+    precautions = split_lines(exercise.precautions)
+    muscles_targeted = split_lines(exercise.muscles_targeted)
+    variations = split_lines(exercise.variations)
+
+    coaching_cards = [
+        {
+            'title': 'Antes de partir',
+            'kicker': 'Setup',
+            'items': setup_tips or [
+                'Ubica la kettlebell cerca del cuerpo y crea tension en el core.',
+                'Mantiene pies firmes, hombros abajo y columna neutra.',
+            ],
+        },
+        {
+            'title': 'Durante el movimiento',
+            'kicker': 'Ejecucion',
+            'items': instruction_steps[:4] or [
+                'Mueve la pesa con control, sin perder la postura.',
+                'Respira de forma estable y evita acelerar si la tecnica se rompe.',
+            ],
+        },
+        {
+            'title': 'Para saber si va bien',
+            'kicker': 'Control',
+            'items': [
+                'La kettlebell viaja cerca del cuerpo cuando corresponde.',
+                'No aparece dolor punzante en espalda, hombros, munecas o rodillas.',
+                'Puedes terminar cada repeticion con la misma postura con que empezaste.',
+            ],
+        },
+    ]
+
     context = {
         'exercise': exercise,
         'is_favorite': is_favorite,
+        'instruction_steps': instruction_steps,
+        'setup_tips_list': setup_tips,
+        'common_mistakes_list': common_mistakes,
+        'progressions_list': progressions,
+        'precautions_list': precautions,
+        'muscles_targeted_list': muscles_targeted,
+        'variations_list': variations,
+        'coaching_cards': coaching_cards,
     }
     return render(request, 'exercises/detail.html', context)
 

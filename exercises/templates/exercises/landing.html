@@ -16,7 +16,7 @@
             </p>
             <div class="hero-cta">
                 <a href="#exercises" class="btn btn-primary">Explorar Ejercicios</a>
-                <a href="/admin" class="btn btn-secondary">Agregar Ejercicio</a>
+                <a href="{% url 'exercises:generate_routine' %}" class="btn btn-secondary">Generar Rutina IA ✨</a>
             </div>
         </div>
     </div>
@@ -44,6 +44,32 @@
         </div>
     </div>
 </section>
+
+{% if video_exercises %}
+<!-- Video Highlights Section -->
+<section class="video-section">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">Videos Destacados</h2>
+            <p class="section-subtitle">Aprende la técnica con ejemplos visuales</p>
+        </div>
+        <div class="video-grid">
+            {% for exercise in video_exercises %}
+            <a class="video-card" href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" data-video-url="{{ exercise.video_url }}">
+                <div class="video-thumb">
+                    <img class="video-thumb-img" src="" alt="Vista previa de {{ exercise.name }}">
+                    <span class="video-play">▶</span>
+                </div>
+                <div class="video-meta">
+                    <h4 class="video-title">{{ exercise.name }}</h4>
+                    <span class="video-tag">{{ exercise.get_difficulty_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
 
 <!-- Exercises Section -->
 <section id="exercises" class="exercises-section">
@@ -293,6 +319,85 @@ function toggleFavorite(event) {
 </script>
 
 <style>
+.video-section {
+    padding: var(--spacing-2xl) 0;
+}
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.video-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-decoration: none;
+    color: var(--text-primary);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.video-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.video-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
+}
+
+.video-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.video-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.video-meta {
+    padding: var(--spacing-md);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+}
+
+.video-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.video-tag {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--primary-light);
+    white-space: nowrap;
+}
+
 .favorite-btn {
     position: absolute;
     top: 10px;
@@ -330,10 +435,31 @@ function toggleFavorite(event) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const videoCards = document.querySelectorAll('.video-card');
     const searchInput = document.getElementById('exerciseSearch');
     const filterButtons = document.querySelectorAll('.filter-btn');
     const exerciseCards = document.querySelectorAll('.exercise-card');
     const categorySections = document.querySelectorAll('.category-section');
+
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+    const fallback = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    videoCards.forEach(card => {
+        const url = card.dataset.videoUrl || "";
+        const img = card.querySelector('.video-thumb-img');
+        const match = url.match(regExp);
+
+        img.onerror = () => {
+            img.src = fallback;
+        };
+
+        if (match && match[2].length === 11) {
+            const videoId = match[2];
+            img.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        } else {
+            img.src = fallback;
+        }
+    });
 
     function filterExercises() {
         const searchTerm = searchInput.value.toLowerCase();

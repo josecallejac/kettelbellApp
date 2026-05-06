@@ -55,6 +55,42 @@ class Exercise(models.Model):
         blank=True,
         help_text='URL de YouTube o Vimeo'
     )
+    muscles_targeted = models.TextField(
+        verbose_name='Músculos trabajados',
+        blank=True,
+        help_text='Lista de músculos principales y secundarios trabajados'
+    )
+    common_mistakes = models.TextField(
+        verbose_name='Errores comunes',
+        blank=True,
+        help_text='Errores frecuentes a evitar y cómo corregirlos'
+    )
+    equipment = models.CharField(
+        max_length=200,
+        verbose_name='Equipo necesario',
+        blank=True,
+        help_text='Equipo necesario, separado por comas (ej: Kettlebell, esterilla)'
+    )
+    variations = models.TextField(
+        verbose_name='Variaciones',
+        blank=True,
+        help_text='Variantes o alternativas del ejercicio'
+    )
+    setup_tips = models.TextField(
+        verbose_name='Consejos de preparación',
+        blank=True,
+        help_text='Consejos para colocación, agarre y preparación'
+    )
+    progressions = models.TextField(
+        verbose_name='Progresiones y regresiones',
+        blank=True,
+        help_text='Cómo progresar o simplificar el ejercicio'
+    )
+    precautions = models.TextField(
+        verbose_name='Precauciones',
+        blank=True,
+        help_text='Precauciones, contraindicaciones y señales de alarma'
+    )
     duration_minutes = models.PositiveIntegerField(
         verbose_name='Duración (minutos)',
         blank=True,
@@ -103,7 +139,14 @@ class Workout(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.title)
+            base_slug = slugify(self.title)
+            slug = base_slug
+            counter = 1
+            # Ensure unique slug
+            while self.__class__.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
         super().save(*args, **kwargs)
 
     def __str__(self):

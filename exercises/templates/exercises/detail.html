@@ -1,106 +1,238 @@
-{% extends 'base.html' %} {% load static %} {% block title %}{{ exercise.name }}
-- KettleBell Pro{% endblock %} {% block content %}
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.name }} - KettleBell Pro{% endblock %}
+
+{% block content %}
 <section class="exercise-detail-section">
   <div class="container">
-    <div class="detail-header">
+    <div class="detail-header pro-detail-header">
       <a href="{% url 'exercises:landing' %}" class="back-link">
-        <span class="back-icon">←</span> Volver a la biblioteca
+        <span class="back-icon">&larr;</span> Volver a la biblioteca
       </a>
+      <div class="detail-kicker">Guia tecnica de pesa rusa</div>
       <h1 class="detail-title gradient-text">{{ exercise.name }}</h1>
+      <p class="detail-lede">{{ exercise.description }}</p>
     </div>
 
     <div class="detail-grid">
       <div class="detail-main">
-        <div class="detail-image-wrapper">
-          {% if exercise.image %}
-          <img
-            src="{{ exercise.image.url }}"
-            alt="{{ exercise.name }}"
-            class="detail-image"
-          />
+        <div class="movement-hero-card">
+          <div class="detail-image-wrapper coach-image-wrapper">
+            {% if exercise.image %}
+            <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="detail-image" />
+            {% else %}
+            <div class="technique-illustration category-{{ exercise.category }}">
+              <div class="floor-line"></div>
+              <div class="body-figure">
+                <span class="head"></span>
+                <span class="torso"></span>
+                <span class="arm arm-left"></span>
+                <span class="arm arm-right"></span>
+                <span class="leg leg-left"></span>
+                <span class="leg leg-right"></span>
+              </div>
+              <div class="kettlebell-shape">
+                <span class="kb-handle"></span>
+                <span class="kb-body"></span>
+              </div>
+              <span class="cue-dot cue-dot-hips">cadera</span>
+              <span class="cue-dot cue-dot-core">core</span>
+              <span class="cue-dot cue-dot-bell">pesa cerca</span>
+            </div>
+            {% endif %}
+
+            <div class="detail-badge-group">
+              <span class="detail-badge difficulty-{{ exercise.difficulty }}">{{ exercise.get_difficulty_display }}</span>
+              <span class="detail-badge category-{{ exercise.category }}">{{ exercise.get_category_display }}</span>
+            </div>
+
+            <button class="favorite-btn detail-favorite {% if is_favorite %}active{% endif %}"
+                    onclick="toggleFavorite(event)"
+                    data-id="{{ exercise.id }}"
+                    {% if not user.is_authenticated %}data-login="true"{% endif %}>
+              <span class="heart-icon">&hearts;</span>
+            </button>
+          </div>
+
+          <div class="movement-snapshot">
+            <div class="snapshot-item">
+              <span class="snapshot-label">Objetivo</span>
+              <strong>{{ exercise.get_category_display }}</strong>
+            </div>
+            <div class="snapshot-item">
+              <span class="snapshot-label">Nivel</span>
+              <strong>{{ exercise.get_difficulty_display }}</strong>
+            </div>
+            <div class="snapshot-item">
+              <span class="snapshot-label">Duracion</span>
+              <strong>{% if exercise.duration_minutes %}{{ exercise.duration_minutes }} min{% else %}Variable{% endif %}</strong>
+            </div>
+            <div class="snapshot-item">
+              <span class="snapshot-label">Equipo</span>
+              <strong>{% if exercise.equipment %}{{ exercise.equipment }}{% else %}Kettlebell{% endif %}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="coach-card-grid">
+          {% for card in coaching_cards %}
+          <article class="coach-card">
+            <span class="coach-kicker">{{ card.kicker }}</span>
+            <h2>{{ card.title }}</h2>
+            <ul class="coach-list">
+              {% for item in card.items %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </article>
+          {% endfor %}
+        </div>
+
+        <div class="detail-info-card instructions-card">
+          <div class="section-heading-row">
+            <div>
+              <span class="detail-kicker">Paso a paso</span>
+              <h2 class="info-title">Ejecucion detallada</h2>
+            </div>
+            <span class="section-pill">Tecnica primero</span>
+          </div>
+          {% if instruction_steps %}
+          <ol class="numbered-steps">
+            {% for step in instruction_steps %}
+            <li><span>{{ step }}</span></li>
+            {% endfor %}
+          </ol>
           {% else %}
-          <div class="detail-image-placeholder">
-            <span class="placeholder-icon">
-              {% if exercise.category == 'strength' %}💪 
-              {% elif exercise.category == 'cardio' %}🔥 
-              {% elif exercise.category == 'flexibility' %}🧘 
-              {% else %}
-              🎯
-              {% endif %}
-            </span>
-          </div>
+          <div class="instructions-list">{{ exercise.instructions|linebreaks }}</div>
           {% endif %}
-          <div class="detail-badge-group">
-            <span class="detail-badge difficulty-{{ exercise.difficulty }}">
-              {{ exercise.get_difficulty_display }}
-            </span>
-            <span class="detail-badge category-{{ exercise.category }}">
-              {{ exercise.get_category_display }}
-            </span>
-          </div>
-          <button class="favorite-btn detail-favorite {% if is_favorite %}active{% endif %}" 
-                  onclick="toggleFavorite(event)"
-                  data-id="{{ exercise.id }}"
-                  {% if not user.is_authenticated %}data-login="true"{% endif %}>
-              <span class="heart-icon">♥</span>
-          </button>
         </div>
 
-        <div class="detail-info-card">
-          <h2 class="info-title">Descripción</h2>
-          <p class="info-text">{{ exercise.description }}</p>
-        </div>
-
-        <div class="detail-info-card">
-          <h2 class="info-title">Instrucciones</h2>
-          <div class="instructions-list">
-            {{ exercise.instructions|linebreaks }}
+        <div class="detail-info-card quality-card">
+          <div class="section-heading-row">
+            <div>
+              <span class="detail-kicker">Auto-chequeo</span>
+              <h2 class="info-title">Senales de buena tecnica</h2>
+            </div>
+          </div>
+          <div class="quality-grid">
+            <div class="quality-item"><strong>Respiracion</strong><span>Exhala en el esfuerzo y no bloquees el aire por demasiado tiempo.</span></div>
+            <div class="quality-item"><strong>Columna</strong><span>Manten una posicion neutra; si se redondea, baja peso o rango.</span></div>
+            <div class="quality-item"><strong>Control</strong><span>La repeticion termina sin perder equilibrio ni tension corporal.</span></div>
           </div>
         </div>
+
+        {% if exercise.muscles_targeted or exercise.common_mistakes or exercise.precautions %}
+        <div class="coach-card-grid coach-card-grid-three">
+          {% if muscles_targeted_list %}
+          <article class="coach-card muscle-card">
+            <span class="coach-kicker">Anatomia</span>
+            <h2>Musculos trabajados</h2>
+            <ul class="coach-list">
+              {% for item in muscles_targeted_list %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          </article>
+          {% endif %}
+
+          {% if common_mistakes_list %}
+          <article class="coach-card danger-card">
+            <span class="coach-kicker">Correccion</span>
+            <h2>Errores comunes</h2>
+            <ul class="coach-list">
+              {% for item in common_mistakes_list %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          </article>
+          {% endif %}
+
+          {% if precautions_list %}
+          <article class="coach-card warning-card">
+            <span class="coach-kicker">Seguridad</span>
+            <h2>Precauciones</h2>
+            <ul class="coach-list">
+              {% for item in precautions_list %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          </article>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if exercise.benefits %}
+        <div class="detail-info-card benefits-long-card">
+          <span class="detail-kicker">Por que sirve</span>
+          <h2 class="info-title">Beneficios</h2>
+          <div class="info-text">{{ exercise.benefits|linebreaks }}</div>
+        </div>
+        {% endif %}
+
+        {% if variations_list or progressions_list %}
+        <div class="detail-info-card progression-card">
+          <div class="section-heading-row">
+            <div>
+              <span class="detail-kicker">Adaptaciones</span>
+              <h2 class="info-title">Como ajustar el ejercicio</h2>
+            </div>
+          </div>
+          <div class="split-detail-grid">
+            {% if variations_list %}
+            <div>
+              <h3>Variaciones</h3>
+              <ul class="coach-list compact-list">
+                {% for item in variations_list %}<li>{{ item }}</li>{% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            {% if progressions_list %}
+            <div>
+              <h3>Progresiones y regresiones</h3>
+              <ul class="coach-list compact-list">
+                {% for item in progressions_list %}<li>{{ item }}</li>{% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
       </div>
 
       <aside class="detail-sidebar">
-        <div class="stats-card">
-          <h3 class="stats-title">Detalles del Ejercicio</h3>
-          <div class="stat-item">
-            <span class="stat-label">⏱️ Duración:</span>
-            <span class="stat-value"
-              >{% if exercise.duration_minutes %}{{ exercise.duration_minutes }}
-              min{% else %}N/A{% endif %}</span
-            >
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">🔥 Calorías:</span>
-            <span class="stat-value"
-              >{% if exercise.calories_burned %}{{ exercise.calories_burned }}
-              kcal{% else %}N/A{% endif %}</span
-            >
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">📈 Nivel:</span>
-            <span class="stat-value"
-              >{{ exercise.get_difficulty_display }}</span
-            >
-          </div>
+        <div class="stats-card coach-sidebar-card">
+          <h3 class="stats-title">Ficha rapida</h3>
+          <div class="stat-item"><span class="stat-label">Duracion:</span><span class="stat-value">{% if exercise.duration_minutes %}{{ exercise.duration_minutes }} min{% else %}N/A{% endif %}</span></div>
+          <div class="stat-item"><span class="stat-label">Calorias:</span><span class="stat-value">{% if exercise.calories_burned %}{{ exercise.calories_burned }} kcal{% else %}N/A{% endif %}</span></div>
+          <div class="stat-item"><span class="stat-label">Nivel:</span><span class="stat-value">{{ exercise.get_difficulty_display }}</span></div>
+          <div class="stat-item"><span class="stat-label">Categoria:</span><span class="stat-value">{{ exercise.get_category_display }}</span></div>
         </div>
 
-        {% if exercise.benefits %}
-        <div class="stats-card benefits-card">
-          <h3 class="stats-title">Beneficios</h3>
-          <p class="benefits-text">{{ exercise.benefits }}</p>
+        <div class="stats-card mini-coach-card">
+          <h3 class="stats-title">Mini rutina sugerida</h3>
+          <p class="benefits-text">Haz 3 series, descansa 45-75 segundos y prioriza repeticiones limpias antes de subir el peso.</p>
         </div>
-        {% endif %} {% if exercise.video_url %}
+
+        {% if exercise.video_url %}
         <div class="video-cta-card">
-          <h3 class="stats-title">Ver en Video</h3>
-          <p class="video-text">Mira la técnica correcta en video.</p>
-          <a
-            href="{{ exercise.video_url }}"
-            target="_blank"
-            class="btn btn-primary btn-full"
-          >
-            Watch on Video 📺
+          <h3 class="stats-title">Video explicativo</h3>
+          <a id="video-link" href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" class="video-thumb">
+            <img id="video-thumb" src="" alt="Vista previa del video" />
+            <span class="video-play">&#9658;</span>
           </a>
+          <a href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-full">Abrir video</a>
         </div>
+        <script>
+          document.addEventListener('DOMContentLoaded', function() {
+            const videoUrl = "{{ exercise.video_url }}";
+            const thumb = document.getElementById('video-thumb');
+            const fallback = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+            const match = videoUrl.match(regExp);
+
+            thumb.onerror = () => { thumb.src = fallback; };
+            if (match && match[2].length === 11) {
+              thumb.src = `https://i.ytimg.com/vi/${match[2]}/hqdefault.jpg`;
+            } else {
+              thumb.src = fallback;
+            }
+          });
+        </script>
         {% endif %}
       </aside>
     </div>
@@ -108,275 +240,118 @@
 </section>
 
 <style>
-  /* Additional styles for Detail Page */
-  .exercise-detail-section {
-    padding: var(--spacing-xl) 0;
-  }
-
-  .detail-header {
-    margin-bottom: var(--spacing-xl);
-  }
-
-  .back-link {
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    margin-bottom: var(--spacing-sm);
-    transition: color var(--transition-base);
-  }
-
-  .back-link:hover {
-    color: var(--primary-light);
-  }
-
-  .detail-title {
-    font-size: clamp(2rem, 5vw, 3.5rem);
-    font-weight: 900;
-  }
-
-  .detail-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: var(--spacing-xl);
-  }
-
-  .detail-image-wrapper {
-    position: relative;
-    border-radius: var(--radius-2xl);
-    overflow: hidden;
-    background: var(--bg-secondary);
-    margin-bottom: var(--spacing-xl);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    height: 480px;
-  }
-
-  .detail-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .detail-image-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  }
-
-  .detail-badge-group {
-    position: absolute;
-    bottom: var(--spacing-md);
-    left: var(--spacing-md);
-    display: flex;
-    gap: var(--spacing-sm);
-  }
-
-  .detail-badge {
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-lg);
-    font-weight: 700;
-    font-size: 0.875rem;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .category-strength {
-    background: rgba(99, 102, 241, 0.8);
-    color: white;
-  }
-  .category-cardio {
-    background: rgba(236, 72, 153, 0.8);
-    color: white;
-  }
-  .category-flexibility {
-    background: rgba(16, 185, 129, 0.8);
-    color: white;
-  }
-  .category-full_body {
-    background: rgba(245, 158, 11, 0.8);
-    color: white;
-  }
-
-  .detail-info-card {
-    background: var(--bg-secondary);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
-    margin-bottom: var(--spacing-lg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .info-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: var(--spacing-md);
-    color: var(--primary-light);
-  }
-
-  .info-text {
-    font-size: 1.125rem;
-    color: var(--text-secondary);
-  }
-
-  .instructions-list {
-    font-size: 1.125rem;
-    color: var(--text-secondary);
-  }
-
-  /* Sidebar Styles */
-  .stats-card {
-    background: var(--bg-secondary);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: var(--spacing-lg);
-  }
-
-  .stats-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: var(--spacing-md);
-    padding-bottom: var(--spacing-xs);
-    border-bottom: 2px solid var(--primary-color);
-    display: inline-block;
-  }
-
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--spacing-xs) 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  }
-
-  .stat-label {
-    color: var(--text-muted);
-    font-weight: 500;
-  }
-
-  .stat-value {
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-
-  .benefits-card {
-    background: linear-gradient(
-      135deg,
-      rgba(99, 102, 241, 0.1) 0%,
-      rgba(236, 72, 153, 0.1) 100%
-    );
-  }
-
-  .benefits-text {
-    color: var(--text-secondary);
-    font-style: italic;
-  }
-
-  .video-cta-card {
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    text-align: center;
-    border: 1px solid var(--primary-color);
-  }
-
-  .btn-full {
-    width: 100%;
-    margin-top: var(--spacing-md);
-  }
-
-  @media (max-width: 992px) {
-    .detail-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .detail-image-wrapper {
-      height: 350px;
-    }
-
-    .detail-sidebar {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: var(--spacing-md);
-    }
-  }
-
-  @media (max-width: 768px) {
-    .detail-sidebar {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  /* Favorite Button Styles */
-  .favorite-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: rgba(30, 41, 59, 0.6);
-    border: none;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    backdrop-filter: blur(4px);
-    transition: all 0.3s ease;
-    z-index: 10;
-  }
-
-  .favorite-btn:hover {
-    background: rgba(30, 41, 59, 0.9);
-    transform: scale(1.1);
-  }
-
-  .favorite-btn .heart-icon {
-    color: white;
-    font-size: 1.5rem;
-    line-height: 1;
-    transition: color 0.3s ease;
-  }
-
-  .favorite-btn.active .heart-icon {
-    color: #ef4444;
-  }
+  .exercise-detail-section { padding: var(--spacing-xl) 0; }
+  .pro-detail-header { max-width: 880px; }
+  .detail-header { margin-bottom: var(--spacing-xl); }
+  .back-link { color: var(--text-secondary); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: var(--spacing-xs); margin-bottom: var(--spacing-sm); transition: color var(--transition-base); }
+  .back-link:hover { color: var(--primary-light); }
+  .detail-kicker, .coach-kicker { color: var(--accent-color); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+  .detail-title { font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 900; line-height: 1.02; margin-top: 0.35rem; }
+  .detail-lede { color: var(--text-secondary); font-size: 1.2rem; max-width: 760px; margin-top: var(--spacing-sm); }
+  .detail-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(290px, 0.85fr); gap: var(--spacing-xl); align-items: start; }
+  .movement-hero-card, .detail-info-card, .coach-card, .stats-card, .video-cta-card { box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22); }
+  .movement-hero-card { background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.8)); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: var(--radius-2xl); overflow: hidden; margin-bottom: var(--spacing-lg); }
+  .detail-image-wrapper { position: relative; overflow: hidden; background: var(--bg-secondary); height: 500px; }
+  .coach-image-wrapper { margin-bottom: 0; border-radius: 0; border: 0; }
+  .detail-image { width: 100%; height: 100%; object-fit: cover; }
+  .technique-illustration { position: relative; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(circle at 70% 20%, rgba(245, 158, 11, 0.28), transparent 30%), radial-gradient(circle at 28% 65%, rgba(99, 102, 241, 0.25), transparent 36%), linear-gradient(135deg, #111827 0%, #172033 52%, #0f172a 100%); }
+  .floor-line { position: absolute; left: 10%; right: 10%; bottom: 19%; height: 2px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent); }
+  .body-figure { position: absolute; left: 42%; top: 23%; width: 210px; height: 270px; transform: rotate(-8deg); }
+  .body-figure span { position: absolute; display: block; background: #e5e7eb; box-shadow: 0 0 24px rgba(255,255,255,0.12); }
+  .head { width: 42px; height: 42px; border-radius: 50%; left: 82px; top: 0; }
+  .torso { width: 28px; height: 118px; border-radius: 30px; left: 90px; top: 47px; transform: rotate(15deg); transform-origin: top; }
+  .arm { width: 18px; height: 110px; border-radius: 20px; top: 58px; transform-origin: top; }
+  .arm-left { left: 78px; transform: rotate(55deg); }
+  .arm-right { left: 105px; transform: rotate(45deg); }
+  .leg { width: 20px; height: 126px; border-radius: 20px; top: 154px; transform-origin: top; }
+  .leg-left { left: 82px; transform: rotate(24deg); }
+  .leg-right { left: 109px; transform: rotate(-20deg); }
+  .kettlebell-shape { position: absolute; left: calc(42% + 178px); top: 58%; width: 94px; height: 92px; }
+  .kb-handle { position: absolute; left: 22px; top: 0; width: 52px; height: 34px; border: 9px solid #f59e0b; border-bottom: 0; border-radius: 28px 28px 0 0; }
+  .kb-body { position: absolute; left: 10px; top: 25px; width: 76px; height: 66px; border-radius: 46% 46% 50% 50%; background: linear-gradient(145deg, #fbbf24, #d97706); box-shadow: 0 18px 45px rgba(245, 158, 11, 0.32); }
+  .cue-dot { position: absolute; color: #fff; font-size: 0.78rem; font-weight: 800; padding: 0.35rem 0.65rem; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(10px); }
+  .cue-dot-hips { left: 36%; top: 50%; }
+  .cue-dot-core { left: 55%; top: 35%; }
+  .cue-dot-bell { left: 63%; top: 70%; }
+  .detail-badge-group { position: absolute; bottom: var(--spacing-md); left: var(--spacing-md); display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+  .detail-badge { padding: 0.5rem 1rem; border-radius: var(--radius-lg); font-weight: 800; font-size: 0.875rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; }
+  .category-strength { background: rgba(99,102,241,0.82); }
+  .category-cardio { background: rgba(236,72,153,0.82); }
+  .category-flexibility { background: rgba(16,185,129,0.82); }
+  .category-full_body { background: rgba(245,158,11,0.82); }
+  .movement-snapshot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.08); }
+  .snapshot-item { padding: 1rem; background: rgba(15, 23, 42, 0.72); }
+  .snapshot-label { display: block; color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+  .snapshot-item strong { color: var(--text-primary); }
+  .coach-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md); margin-bottom: var(--spacing-lg); }
+  .coach-card { background: rgba(30,41,59,0.72); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-xl); padding: var(--spacing-lg); position: relative; overflow: hidden; }
+  .coach-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(99,102,241,0.18), transparent 38%); pointer-events: none; }
+  .coach-card h2 { position: relative; font-size: 1.2rem; margin: 0.35rem 0 0.8rem; }
+  .coach-list { position: relative; list-style: none; display: grid; gap: 0.7rem; color: var(--text-secondary); }
+  .coach-list li { padding-left: 1.25rem; position: relative; line-height: 1.45; }
+  .coach-list li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); box-shadow: 0 0 16px rgba(245,158,11,0.55); }
+  .detail-info-card { background: rgba(30,41,59,0.78); border-radius: var(--radius-xl); padding: var(--spacing-xl); margin-bottom: var(--spacing-lg); border: 1px solid rgba(255,255,255,0.1); }
+  .section-heading-row { display: flex; justify-content: space-between; gap: var(--spacing-md); align-items: start; margin-bottom: var(--spacing-md); }
+  .info-title { font-size: 1.55rem; font-weight: 800; margin-top: 0.2rem; color: var(--text-primary); }
+  .section-pill { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.32); padding: 0.4rem 0.75rem; border-radius: 999px; font-weight: 800; font-size: 0.8rem; white-space: nowrap; }
+  .numbered-steps { list-style: none; counter-reset: step; display: grid; gap: 0.85rem; }
+  .numbered-steps li { counter-increment: step; display: grid; grid-template-columns: 42px 1fr; gap: 0.85rem; align-items: start; color: var(--text-secondary); }
+  .numbered-steps li::before { content: counter(step); width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; font-weight: 900; box-shadow: 0 12px 26px rgba(245,158,11,0.22); }
+  .numbered-steps span { padding-top: 0.45rem; }
+  .quality-grid, .split-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md); }
+  .quality-item { background: rgba(15,23,42,0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: var(--spacing-md); }
+  .quality-item strong, .split-detail-grid h3 { display: block; color: var(--primary-light); margin-bottom: 0.4rem; }
+  .quality-item span, .info-text, .benefits-text { color: var(--text-secondary); }
+  .coach-card-grid-three { grid-template-columns: repeat(3, 1fr); }
+  .danger-card { border-color: rgba(239,68,68,0.25); }
+  .warning-card { border-color: rgba(245,158,11,0.32); }
+  .muscle-card { border-color: rgba(16,185,129,0.25); }
+  .split-detail-grid { grid-template-columns: repeat(2, 1fr); }
+  .compact-list { margin-top: 0.6rem; }
+  .detail-sidebar { position: sticky; top: 100px; }
+  .stats-card { background: rgba(30,41,59,0.78); border-radius: var(--radius-xl); padding: var(--spacing-lg); border: 1px solid rgba(255,255,255,0.1); margin-bottom: var(--spacing-lg); }
+  .stats-title { font-size: 1.2rem; font-weight: 800; margin-bottom: var(--spacing-md); padding-bottom: var(--spacing-xs); border-bottom: 2px solid var(--primary-color); display: inline-block; }
+  .stat-item { display: flex; justify-content: space-between; gap: var(--spacing-md); padding: var(--spacing-xs) 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .stat-label { color: var(--text-muted); font-weight: 600; }
+  .stat-value { color: var(--text-primary); font-weight: 800; text-align: right; }
+  .mini-coach-card { background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(245,158,11,0.12)); }
+  .video-cta-card { background: var(--bg-tertiary); border-radius: var(--radius-xl); padding: var(--spacing-lg); text-align: center; border: 1px solid var(--primary-color); }
+  .video-thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 0.75rem; overflow: hidden; border: 1px solid rgba(255,255,255,0.15); background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%); }
+  .video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .video-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); color: white; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 2px solid rgba(255,255,255,0.7); }
+  .btn-full { width: 100%; margin-top: var(--spacing-md); }
+  .favorite-btn { position: absolute; top: 20px; right: 20px; background: rgba(30,41,59,0.65); border: none; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(8px); transition: all 0.3s ease; z-index: 10; }
+  .favorite-btn:hover { background: rgba(30,41,59,0.95); transform: scale(1.08); }
+  .favorite-btn .heart-icon { color: white; font-size: 1.5rem; line-height: 1; transition: color 0.3s ease; }
+  .favorite-btn.active .heart-icon { color: #ef4444; }
+  @media (max-width: 1100px) { .detail-grid { grid-template-columns: 1fr; } .detail-sidebar { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--spacing-md); } }
+  @media (max-width: 860px) { .coach-card-grid, .coach-card-grid-three, .quality-grid, .movement-snapshot { grid-template-columns: 1fr 1fr; } .detail-image-wrapper { height: 390px; } .body-figure { left: 34%; transform: scale(0.85) rotate(-8deg); } .kettlebell-shape { left: 62%; } }
+  @media (max-width: 640px) { .coach-card-grid, .coach-card-grid-three, .quality-grid, .split-detail-grid, .movement-snapshot, .detail-sidebar { grid-template-columns: 1fr; } .section-heading-row { display: block; } .section-pill { display: inline-block; margin-top: var(--spacing-sm); } .detail-image-wrapper { height: 330px; } .body-figure { left: 22%; top: 22%; transform: scale(0.72) rotate(-8deg); } .kettlebell-shape { left: 58%; top: 60%; transform: scale(0.78); } .cue-dot { font-size: 0.68rem; } .cue-dot-core { left: 52%; } }
 </style>
 
 <script>
 function toggleFavorite(event) {
-    event.preventDefault();
-    
-    const btn = event.currentTarget;
-    
-    if (btn.dataset.login) {
-        window.location.href = "{% url 'exercises:login' %}";
-        return;
+  event.preventDefault();
+  const btn = event.currentTarget;
+  if (btn.dataset.login) {
+    window.location.href = "{% url 'exercises:login' %}";
+    return;
+  }
+
+  fetch("{% url 'exercises:toggle_favorite' %}", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}'
+    },
+    body: JSON.stringify({ exercise_id: btn.dataset.id })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === 'success') {
+      btn.classList.toggle('active', data.is_favorite);
     }
-
-    const bg_id = btn.dataset.id;
-
-    fetch("{% url 'exercises:toggle_favorite' %}", {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify({exercise_id: bg_id})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            if (data.is_favorite) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        }
-    });
+  });
 }
 </script>
 {% endblock %}

@@ -5,7 +5,7 @@ from .models import Exercise, Workout, WorkoutExercise, WorkoutLog
 class ExerciseAdmin(admin.ModelAdmin):
     list_display = ['name', 'category', 'difficulty', 'duration_minutes', 'calories_burned', 'created_at']
     list_filter = ['category', 'difficulty', 'created_at']
-    search_fields = ['name', 'description', 'benefits', 'instructions']
+    search_fields = ['name', 'description', 'benefits', 'instructions', 'muscles_targeted', 'common_mistakes', 'equipment']
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ['created_at', 'updated_at']
     
@@ -21,6 +21,9 @@ class ExerciseAdmin(admin.ModelAdmin):
         }),
         ('Métricas', {
             'fields': ('duration_minutes', 'calories_burned')
+        }),
+        ('Detalles Avanzados', {
+            'fields': ('equipment', 'muscles_targeted', 'variations', 'setup_tips', 'progressions', 'common_mistakes', 'precautions')
         }),
         ('Fechas', {
             'fields': ('created_at', 'updated_at'),
