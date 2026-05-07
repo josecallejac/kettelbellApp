@@ -1,0 +1,14 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="kb-favicon-bg" x1="10" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f59e0b"/>
+      <stop offset="0.48" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#ef4444"/>
+    </linearGradient>
+    <filter id="kb-favicon-shadow" x="0" y="0" width="64" height="64" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect x="5" y="5" width="54" height="54" rx="16" fill="url(#kb-favicon-bg)" filter="url(#kb-favicon-shadow)"/>
+  <path d="M20 18h8.2v10.7L37 18h9.4L36.1 30.1 47.2 46H37.4l-7.1-10.4-2.1 2.4v8H20V18Z" fill="#ffffff"/>
+</svg>
