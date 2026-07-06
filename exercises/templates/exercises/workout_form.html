@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Crear Entrenamiento - KettleBell Pro{% endblock %}
+{% block title %}{{ page_heading|default:'Crear Entrenamiento' }} - KettleBell Pro{% endblock %}
 
 {% block content %}
 <section class="create-workout-section">
     <div class="container-sm">
         <header class="section-header">
-            <h1 class="gradient-text">Crear Nueva Rutina</h1>
-            <p class="section-subtitle">Diseña tu entrenamiento personalizado.</p>
+            <h1 class="gradient-text">{{ page_heading|default:'Crear Nueva Rutina' }}</h1>
+            <p class="section-subtitle">{{ page_subtitle|default:'Diseña tu entrenamiento personalizado.' }}</p>
         </header>
 
         <form method="post" class="create-form">

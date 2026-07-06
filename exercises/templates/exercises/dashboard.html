@@ -11,17 +11,13 @@
             <p class="dashboard-subtitle">Aquí tienes un resumen de tu actividad y favoritos.</p>
         </header>
 
-        <!-- Stats Overview -->
-        <div class="mb-8">
-            <div class="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-2xl p-6 border border-blue-500/30 flex items-center justify-between">
-                <div>
-                    <h2 class="text-xl font-bold text-white mb-2">¿No sabes qué entrenar hoy?</h2>
-                    <p class="text-gray-300">Deja que nuestra IA diseñe la rutina perfecta para ti en segundos.</p>
-                </div>
-                <a href="{% url 'exercises:generate_routine' %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg flex items-center gap-2">
-                    <span>✨</span> Generar Rutina
-                </a>
+        <!-- AI promo banner -->
+        <div class="ai-banner">
+            <div class="ai-banner-copy">
+                <h2>¿No sabes qué entrenar hoy?</h2>
+                <p>Deja que diseñemos la rutina perfecta para ti en segundos.</p>
             </div>
+            <a href="{% url 'exercises:generate_routine' %}" class="btn btn-primary">✨ Generar Rutina</a>
         </div>
 
         <div class="stats-grid">
@@ -33,6 +29,44 @@
                 </div>
             </div>
             <!-- Future stats could go here like 'Total Minutes', 'Calories Burned' -->
+        </div>
+
+        <!-- Mis Rutinas -->
+        <div class="my-workouts-section">
+            <h2 class="column-title">Mis Rutinas</h2>
+            <div class="my-workouts-grid">
+                {% for workout in my_workouts %}
+                <div class="my-workout-card">
+                    <div class="my-workout-info">
+                        <h3 class="my-workout-title">
+                            <a href="{% url 'exercises:workout_detail' workout.slug %}">{{ workout.title }}</a>
+                        </h3>
+                        <div class="my-workout-meta">
+                            <span class="tag difficulty-{{ workout.difficulty }}">{{ workout.get_difficulty_display }}</span>
+                            <span class="meta-item">⏱️ {{ workout.estimated_duration }} min</span>
+                            <span class="meta-item">{% if workout.is_public %}🌐 Pública{% else %}🔒 Privada{% endif %}</span>
+                        </div>
+                    </div>
+                    <div class="my-workout-actions">
+                        <a href="{% url 'exercises:workout_session' workout.slug %}" class="btn btn-sm btn-primary">Entrenar</a>
+                        <a href="{% url 'exercises:workout_edit' workout.slug %}" class="btn btn-sm btn-outline">Editar</a>
+                        <form method="post" action="{% url 'exercises:workout_delete' workout.slug %}"
+                              onsubmit="return confirm('¿Eliminar la rutina «{{ workout.title|escapejs }}»?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger-outline">Eliminar</button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state-card">
+                    <p>Todavía no has creado ninguna rutina.</p>
+                    <div class="empty-actions">
+                        <a href="{% url 'exercises:workout_create' %}" class="btn btn-primary btn-sm">Crear rutina</a>
+                        <a href="{% url 'exercises:generate_routine' %}" class="btn btn-secondary btn-sm">Generar con un clic</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
         <div class="dashboard-grid">
@@ -95,6 +129,31 @@
 
     .dashboard-header {
         margin-bottom: var(--spacing-xl);
+    }
+
+    .ai-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--spacing-lg);
+        flex-wrap: wrap;
+        background: linear-gradient(90deg, rgba(30, 58, 138, 0.5), rgba(49, 46, 129, 0.5));
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: var(--radius-2xl);
+        padding: var(--spacing-lg) var(--spacing-xl);
+        margin-bottom: var(--spacing-2xl);
+    }
+
+    .ai-banner-copy h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 0.25rem;
+    }
+
+    .ai-banner-copy p {
+        color: var(--text-secondary);
+        margin: 0;
     }
     
     .dashboard-title {
@@ -289,6 +348,100 @@
     .btn-sm {
         padding: 0.4rem 0.8rem;
         font-size: 0.8rem;
+    }
+
+    /* Mis Rutinas */
+    .my-workouts-section {
+        margin-bottom: var(--spacing-2xl);
+    }
+
+    .my-workouts-grid {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .my-workout-card {
+        background: var(--bg-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-md) var(--spacing-lg);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+
+    .my-workout-title {
+        font-size: 1.05rem;
+        margin-bottom: 6px;
+    }
+
+    .my-workout-title a {
+        color: var(--text-primary);
+        text-decoration: none;
+    }
+
+    .my-workout-title a:hover {
+        color: var(--primary-light);
+    }
+
+    .my-workout-meta {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+    }
+
+    .my-workout-meta .tag {
+        padding: 0.2rem 0.6rem;
+        border-radius: var(--radius-md);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .difficulty-beginner { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .difficulty-intermediate { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .difficulty-advanced { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+    .meta-item {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .my-workout-actions {
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: center;
+    }
+
+    .my-workout-actions form {
+        margin: 0;
+    }
+
+    .btn-outline {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: var(--text-primary);
+        background: transparent;
+    }
+
+    .btn-danger-outline {
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        color: #f87171;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .btn-danger-outline:hover {
+        background: rgba(239, 68, 68, 0.15);
+    }
+
+    .empty-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        justify-content: center;
+        flex-wrap: wrap;
     }
 </style>
 {% endblock %}

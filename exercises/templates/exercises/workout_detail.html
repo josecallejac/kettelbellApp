@@ -30,6 +30,16 @@
                     <a href="{% url 'exercises:workout_session' workout.slug %}" class="btn btn-primary btn-lg pulse-animation">
                         🚀 Comenzar Rutina
                     </a>
+                    {% if user.is_authenticated and user == workout.created_by %}
+                    <div class="owner-actions">
+                        <a href="{% url 'exercises:workout_edit' workout.slug %}" class="btn btn-sm btn-outline">✏️ Editar</a>
+                        <form method="post" action="{% url 'exercises:workout_delete' workout.slug %}"
+                              onsubmit="return confirm('¿Seguro que quieres eliminar esta rutina? Esta acción no se puede deshacer.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger-outline">🗑️ Eliminar</button>
+                        </form>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -313,6 +323,35 @@
     .btn-outline:hover {
         border-color: var(--primary-light);
         color: var(--primary-light);
+    }
+
+    .workout-actions {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: center;
+    }
+
+    .owner-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: center;
+    }
+
+    .owner-actions form {
+        margin: 0;
+    }
+
+    .btn-danger-outline {
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        color: #f87171;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .btn-danger-outline:hover {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: #ef4444;
     }
 
     @media (max-width: 768px) {

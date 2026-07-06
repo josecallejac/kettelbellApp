@@ -17,11 +17,11 @@
                 Biblioteca tecnica, rutinas guiadas y ejercicios con pesas rusas para desarrollar fuerza, resistencia y movilidad sin perder control.
             </p>
             <div class="hero-cta">
-                <a href="#exercises" class="btn btn-primary">Explorar Ejercicios</a>
+                <a href="{% url 'exercises:exercise_list' %}" class="btn btn-primary">Explorar Ejercicios</a>
                 <a href="{% url 'exercises:generate_routine' %}" class="btn btn-secondary">Generar Rutina IA ✨</a>
             </div>
             <div class="hero-proof">
-                <span>{{ all_exercises.count }} ejercicios</span>
+                <span>{{ total_exercises }} ejercicios</span>
                 <span>4 categorias</span>
                 <span>3 niveles</span>
             </div>
@@ -30,13 +30,13 @@
     </div>
 </section>
 
-<!-- Stats Section -->
+<!-- Stats / quick nav -->
 <section class="stats-section">
     <div class="container">
         <div class="stats-grid">
             <a href="{% url 'exercises:exercise_list' %}" class="stat-card stat-card-link">
                 <div class="stat-icon">💪</div>
-                <div class="stat-number">{{ all_exercises.count }}</div>
+                <div class="stat-number">{{ total_exercises }}</div>
                 <div class="stat-label">Ejercicios Totales</div>
             </a>
             <a href="{% url 'exercises:category_list' %}" class="stat-card stat-card-link">
@@ -65,7 +65,7 @@
             {% for exercise in video_exercises %}
             <a class="video-card" href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" data-video-url="{{ exercise.video_url }}">
                 <div class="video-thumb">
-                    <img class="video-thumb-img" src="" alt="Vista previa de {{ exercise.name }}">
+                    <img class="video-thumb-img" src="" alt="Vista previa de {{ exercise.name }}" loading="lazy">
                     <span class="video-play">▶</span>
                 </div>
                 <div class="video-meta">
@@ -79,195 +79,57 @@
 </section>
 {% endif %}
 
-<!-- Exercises Section -->
+<!-- Featured Exercises -->
 <section id="exercises" class="exercises-section">
     <div class="container">
         <div class="section-header">
-            <h2 class="section-title">Biblioteca de Ejercicios</h2>
-            <p class="section-subtitle">Explora nuestra colección completa de ejercicios con kettlebell</p>
-            
-            <!-- Search and Filter Controls -->
-            <div class="controls-container">
-                <div class="search-wrapper">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="exerciseSearch" placeholder="Buscar ejercicios por nombre o descripción..." class="search-input">
-                </div>
-                <div class="filter-wrapper">
-                    <button class="filter-btn active" data-filter="all">Todos</button>
-                    <button class="filter-btn" data-filter="beginner">Principiante</button>
-                    <button class="filter-btn" data-filter="intermediate">Intermedio</button>
-                    <button class="filter-btn" data-filter="advanced">Avanzado</button>
-                </div>
-            </div>
+            <h2 class="section-title">Ejercicios Destacados</h2>
+            <p class="section-subtitle">Una muestra de la biblioteca. Usa el buscador para ver todo.</p>
         </div>
 
-        {% if exercises_by_category.strength %}
-        <div id="strength" class="category-section">
-            <h3 class="category-title">
-                <span class="category-icon">💪</span>
-                Fuerza
-            </h3>
-            <div class="exercises-grid">
-                {% for exercise in exercises_by_category.strength %}
-                <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
-                    <div class="card-image-wrapper">
-                        {% if exercise.image %}
-                        <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
-                        {% else %}
-                        <div class="card-image-placeholder">
-                            <span class="placeholder-icon">🏋️</span>
-                        </div>
-                        {% endif %}
-                        <div class="card-badge difficulty-{{ exercise.difficulty }}">
-                            {{ exercise.get_difficulty_display }}
-                        </div>
-                        <button class="favorite-btn {% if exercise.id in favorites_ids %}active{% endif %}" 
-                                onclick="toggleFavorite(event)"
-                                data-id="{{ exercise.id }}"
-                                {% if not user.is_authenticated %}data-login="true"{% endif %}>
-                            <span class="heart-icon">♥</span>
-                        </button>
+        {% if featured_exercises %}
+        <div class="exercises-grid">
+            {% for exercise in featured_exercises %}
+            <div class="exercise-card">
+                <div class="card-image-wrapper">
+                    {% if exercise.image %}
+                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image" loading="lazy">
+                    {% else %}
+                    <div class="card-image-placeholder">
+                        <span class="placeholder-icon">🏋️</span>
                     </div>
-                    <div class="card-content">
-                        <h4 class="card-title">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
-                                {{ exercise.name }}
-                            </a>
-                        </h4>
-                        <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
-                        <div class="card-footer">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
-                                Ver Detalles <span class="arrow">→</span>
-                            </a>
-                        </div>
+                    {% endif %}
+                    <div class="card-badge difficulty-{{ exercise.difficulty }}">
+                        {{ exercise.get_difficulty_display }}
+                    </div>
+                    <button class="favorite-btn {% if exercise.id in favorites_ids %}active{% endif %}"
+                            onclick="toggleFavorite(event)"
+                            data-id="{{ exercise.id }}"
+                            {% if not user.is_authenticated %}data-login="true"{% endif %}>
+                        <span class="heart-icon">♥</span>
+                    </button>
+                </div>
+                <div class="card-content">
+                    <h4 class="card-title">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
+                            {{ exercise.name }}
+                        </a>
+                    </h4>
+                    <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
+                    <div class="card-footer">
+                        <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
+                            Ver Detalles <span class="arrow">→</span>
+                        </a>
                     </div>
                 </div>
-                {% endfor %}
             </div>
+            {% endfor %}
         </div>
-        {% endif %}
 
-        {% if exercises_by_category.cardio %}
-        <div id="cardio" class="category-section">
-            <h3 class="category-title">
-                <span class="category-icon">🔥</span>
-                Cardio
-            </h3>
-            <div class="exercises-grid">
-                {% for exercise in exercises_by_category.cardio %}
-                <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
-                    <div class="card-image-wrapper">
-                        {% if exercise.image %}
-                        <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
-                        {% else %}
-                        <div class="card-image-placeholder">
-                            <span class="placeholder-icon">⚡</span>
-                        </div>
-                        {% endif %}
-                        <div class="card-badge difficulty-{{ exercise.difficulty }}">
-                            {{ exercise.get_difficulty_display }}
-                        </div>
-                    </div>
-                    <div class="card-content">
-                        <h4 class="card-title">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
-                                {{ exercise.name }}
-                            </a>
-                        </h4>
-                        <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
-                        <div class="card-footer">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
-                                Ver Detalles <span class="arrow">→</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+        <div class="library-cta">
+            <a href="{% url 'exercises:exercise_list' %}" class="btn btn-primary btn-lg">Ver biblioteca completa →</a>
         </div>
-        {% endif %}
-
-        {% if exercises_by_category.flexibility %}
-        <div id="flexibility" class="category-section">
-            <h3 class="category-title">
-                <span class="category-icon">🧘</span>
-                Flexibilidad
-            </h3>
-            <div class="exercises-grid">
-                {% for exercise in exercises_by_category.flexibility %}
-                <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
-                    <div class="card-image-wrapper">
-                        {% if exercise.image %}
-                        <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
-                        {% else %}
-                        <div class="card-image-placeholder">
-                            <span class="placeholder-icon">🌟</span>
-                        </div>
-                        {% endif %}
-                        <div class="card-badge difficulty-{{ exercise.difficulty }}">
-                            {{ exercise.get_difficulty_display }}
-                        </div>
-                    </div>
-                    <div class="card-content">
-                        <h4 class="card-title">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
-                                {{ exercise.name }}
-                            </a>
-                        </h4>
-                        <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
-                        <div class="card-footer">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
-                                Ver Detalles <span class="arrow">→</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {% if exercises_by_category.full_body %}
-        <div id="full-body" class="category-section">
-            <h3 class="category-title">
-                <span class="category-icon">🎯</span>
-                Cuerpo Completo
-            </h3>
-            <div class="exercises-grid">
-                {% for exercise in exercises_by_category.full_body %}
-                <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
-                    <div class="card-image-wrapper">
-                        {% if exercise.image %}
-                        <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
-                        {% else %}
-                        <div class="card-image-placeholder">
-                            <span class="placeholder-icon">💫</span>
-                        </div>
-                        {% endif %}
-                        <div class="card-badge difficulty-{{ exercise.difficulty }}">
-                            {{ exercise.get_difficulty_display }}
-                        </div>
-                    </div>
-                    <div class="card-content">
-                        <h4 class="card-title">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="card-link">
-                                {{ exercise.name }}
-                            </a>
-                        </h4>
-                        <p class="card-description">{{ exercise.description|truncatewords:15 }}</p>
-                        <div class="card-footer">
-                            <a href="{% url 'exercises:detail' exercise.slug %}" class="btn-text">
-                                Ver Detalles <span class="arrow">→</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {% if not all_exercises %}
+        {% else %}
         <div class="empty-state">
             <div class="empty-icon">📋</div>
             <h3 class="empty-title">No hay ejercicios todavía</h3>
@@ -278,32 +140,18 @@
     </div>
 </section>
 
-<!-- CTA Section -->
-<section class="cta-section">
-    <div class="container">
-        <div class="cta-content">
-            <h2 class="cta-title">¿Listo para comenzar tu transformación?</h2>
-            <p class="cta-subtitle">Accede al panel de administración para gestionar ejercicios</p>
-            <a href="/admin" class="btn btn-primary btn-lg">Ir al Panel Admin</a>
-        </div>
-    </div>
-</section>
 {% block extra_js %}
-
 <script>
 function toggleFavorite(event) {
     event.preventDefault();
     event.stopPropagation();
-    
-    // Find the button (in case click target was the icon inside)
+
     const btn = event.currentTarget;
-    
+
     if (btn.dataset.login) {
         window.location.href = "{% url 'exercises:login' %}";
         return;
     }
-
-    const bg_id = btn.dataset.id;
 
     fetch("{% url 'exercises:toggle_favorite' %}", {
         method: 'POST',
@@ -311,206 +159,54 @@ function toggleFavorite(event) {
             'Content-Type': 'application/json',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: JSON.stringify({exercise_id: bg_id})
+        body: JSON.stringify({ exercise_id: btn.dataset.id })
     })
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            if (data.is_favorite) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', data.is_favorite);
         }
     });
 }
-</script>
 
-<style>
-.video-section {
-    padding: var(--spacing-2xl) 0;
-}
-
-.video-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--spacing-lg);
-}
-
-.video-card {
-    background: var(--bg-secondary);
-    border-radius: var(--radius-xl);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    text-decoration: none;
-    color: var(--text-primary);
-    overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.video-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-}
-
-.video-thumb {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
-}
-
-.video-thumb-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.video-play {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.4rem;
-    border: 2px solid rgba(255, 255, 255, 0.7);
-}
-
-.video-meta {
-    padding: var(--spacing-md);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-sm);
-}
-
-.video-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin: 0;
-}
-
-.video-tag {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 999px;
-    background: rgba(99, 102, 241, 0.2);
-    color: var(--primary-light);
-    white-space: nowrap;
-}
-
-.favorite-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(30, 41, 59, 0.6);
-    border: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    backdrop-filter: blur(4px);
-    transition: all 0.3s ease;
-    z-index: 10;
-}
-
-.favorite-btn:hover {
-    background: rgba(30, 41, 59, 0.9);
-    transform: scale(1.1);
-}
-
-.favorite-btn .heart-icon {
-    color: white;
-    font-size: 1.2rem;
-    line-height: 1;
-    transition: color 0.3s ease;
-}
-
-.favorite-btn.active .heart-icon {
-    color: #ef4444;
-}
-</style>
-
-<script>
 document.addEventListener('DOMContentLoaded', function() {
-    const videoCards = document.querySelectorAll('.video-card');
-    const searchInput = document.getElementById('exerciseSearch');
-    const filterButtons = document.querySelectorAll('.filter-btn');
-    const exerciseCards = document.querySelectorAll('.exercise-card');
-    const categorySections = document.querySelectorAll('.category-section');
-
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
     const fallback = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-    videoCards.forEach(card => {
+    document.querySelectorAll('.video-card').forEach(card => {
         const url = card.dataset.videoUrl || "";
         const img = card.querySelector('.video-thumb-img');
         const match = url.match(regExp);
 
-        img.onerror = () => {
-            img.src = fallback;
-        };
+        img.onerror = () => { img.src = fallback; };
 
         if (match && match[2].length === 11) {
-            const videoId = match[2];
-            img.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+            img.src = `https://i.ytimg.com/vi/${match[2]}/hqdefault.jpg`;
         } else {
             img.src = fallback;
         }
     });
-
-    function filterExercises() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
-
-        // Hide empty category sections
-        categorySections.forEach(section => {
-            const cardsInSection = section.querySelectorAll('.exercise-card');
-            let visibleCount = 0;
-
-            cardsInSection.forEach(card => {
-                const name = card.dataset.name;
-                const difficulty = card.dataset.difficulty;
-                const description = card.querySelector('.card-description').textContent.toLowerCase();
-                
-                const matchesSearch = name.includes(searchTerm) || description.includes(searchTerm);
-                const matchesFilter = activeFilter === 'all' || difficulty === activeFilter;
-
-                if (matchesSearch && matchesFilter) {
-                    card.style.display = 'block';
-                    card.style.animation = 'none';
-                    card.offsetHeight; /* trigger reflow */
-                    card.style.animation = 'fadeInUp 0.5s ease forwards';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-
-            section.style.display = visibleCount > 0 ? 'block' : 'none';
-        });
-    }
-
-    searchInput.addEventListener('input', filterExercises);
-
-    filterButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            filterButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterExercises();
-        });
-    });
 });
 </script>
+
+<style>
+.video-section { padding: var(--spacing-2xl) 0; }
+.video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--spacing-lg); }
+.video-card { background: var(--bg-secondary); border-radius: var(--radius-xl); border: 1px solid rgba(255, 255, 255, 0.1); text-decoration: none; color: var(--text-primary); overflow: hidden; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.video-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25); }
+.video-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%); }
+.video-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.video-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.6); color: white; width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; border: 2px solid rgba(255, 255, 255, 0.7); }
+.video-meta { padding: var(--spacing-md); display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
+.video-title { font-size: 1rem; font-weight: 700; margin: 0; }
+.video-tag { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 999px; background: rgba(99, 102, 241, 0.2); color: var(--primary-light); white-space: nowrap; }
+
+.favorite-btn { position: absolute; top: 10px; right: 10px; background: rgba(30, 41, 59, 0.6); border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); transition: all 0.3s ease; z-index: 10; }
+.favorite-btn:hover { background: rgba(30, 41, 59, 0.9); transform: scale(1.1); }
+.favorite-btn .heart-icon { color: white; font-size: 1.2rem; line-height: 1; transition: color 0.3s ease; }
+.favorite-btn.active .heart-icon { color: #ef4444; }
+
+.library-cta { text-align: center; margin-top: var(--spacing-2xl); }
+</style>
 {% endblock %}
 {% endblock %}

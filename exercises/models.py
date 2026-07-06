@@ -3,6 +3,18 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.contrib.auth.models import User
 
+
+def build_unique_slug(instance, source_text):
+    """Genera un slug único para el modelo de la instancia a partir del texto dado."""
+    base_slug = slugify(source_text) or 'item'
+    slug = base_slug
+    counter = 1
+    queryset = instance.__class__.objects.exclude(pk=instance.pk)
+    while queryset.filter(slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    return slug
+
 class Favorite(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
     exercise = models.ForeignKey('Exercise', on_delete=models.CASCADE, related_name='favorited_by')
@@ -116,7 +128,7 @@ class Exercise(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = build_unique_slug(self, self.name)
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
@@ -134,19 +146,20 @@ class Workout(models.Model):
     description = models.TextField(verbose_name='Descripción')
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, verbose_name='Dificultad')
     estimated_duration = models.PositiveIntegerField(help_text='Duración estimada en minutos', verbose_name='Duración estimada')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workouts',
+        verbose_name='Creado por',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     is_public = models.BooleanField(default=True, verbose_name='Es público')
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.title)
-            slug = base_slug
-            counter = 1
-            # Ensure unique slug
-            while self.__class__.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = build_unique_slug(self, self.title)
         super().save(*args, **kwargs)
 
     def __str__(self):

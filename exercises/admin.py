@@ -39,9 +39,9 @@ class WorkoutExerciseInline(admin.TabularInline):
 
 @admin.register(Workout)
 class WorkoutAdmin(admin.ModelAdmin):
-    list_display = ['title', 'difficulty', 'estimated_duration', 'is_public', 'created_at']
+    list_display = ['title', 'created_by', 'difficulty', 'estimated_duration', 'is_public', 'created_at']
     list_filter = ['difficulty', 'is_public']
-    search_fields = ['title', 'description']
+    search_fields = ['title', 'description', 'created_by__username']
     prepopulated_fields = {'slug': ('title',)}
     inlines = [WorkoutExerciseInline]
 

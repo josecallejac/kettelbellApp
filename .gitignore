@@ -3,3 +3,5 @@ db.sqlite3
 venv
 populate_exercises.py
 test_routine_generator.py
+__pycache__/
+*.pyc

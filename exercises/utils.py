@@ -28,6 +28,7 @@ class RoutineGenerator:
             description=description,
             difficulty=self.difficulty,
             estimated_duration=self.duration_minutes,
+            created_by=self.user,
             is_public=False  # Private by default
         )
         

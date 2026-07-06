@@ -22,6 +22,8 @@ urlpatterns = [
     path('workouts/generate/', views.generate_routine_view, name='generate_routine'),
     path('workouts/<slug:slug>/', views.workout_detail, name='workout_detail'),
     path('workouts/<slug:slug>/start/', views.workout_session, name='workout_session'),
+    path('workouts/<slug:slug>/edit/', views.edit_workout, name='workout_edit'),
+    path('workouts/<slug:slug>/delete/', views.delete_workout, name='workout_delete'),
     
     # Dashboard & API
     path('dashboard/', views.dashboard, name='dashboard'),
