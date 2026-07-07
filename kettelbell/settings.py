@@ -15,10 +15,14 @@ HAS_WHITENOISE = find_spec('whitenoise') is not None
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-6norpgv332#!826!u*(-7b@bici7(9&16g6$nm!(33eba(b+lg',
-)
+# La clave se toma SIEMPRE del entorno (DJANGO_SECRET_KEY). Si no existe, se
+# genera una efimera solo para desarrollo. Define DJANGO_SECRET_KEY en tu .env
+# (o en el entorno del servidor) para produccion y para mantener las sesiones
+# entre reinicios.
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    from django.core.management.utils import get_random_secret_key
+    SECRET_KEY = get_random_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
