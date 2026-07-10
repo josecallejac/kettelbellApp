@@ -3,3 +3,5 @@ gunicorn==23.0.0
 Pillow==11.1.0
 psycopg[binary]==3.2.4
 whitenoise==6.8.2
+ollama
+django-debug-toolbar
