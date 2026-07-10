@@ -26,6 +26,12 @@ for attempt in range(60):
 PY
 fi
 
+# Sembrar las imagenes del catalogo en el volumen de media sin pisar
+# archivos ya existentes (subidas de usuarios o versiones previas).
+if [ -d /app/media_seed ]; then
+  cp -rn /app/media_seed/. /app/media/ || true
+fi
+
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 

@@ -330,7 +330,11 @@ def get_visible_workout_or_404(user, slug):
 
 
 def workout_list(request):
-    workouts = get_visible_workouts(request.user).order_by('-created_at')
+    workouts = (
+        get_visible_workouts(request.user)
+        .annotate(num_exercises=Count('exercises'))
+        .order_by('-created_at')
+    )
     context = {
         'workouts': workouts
     }

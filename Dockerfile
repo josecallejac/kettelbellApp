@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Copia de las imagenes del catalogo fuera de /app/media: el volumen de media
+# monta encima de /app/media y ocultaria las que vienen en la imagen.
+RUN cp -r /app/media /app/media_seed
+
 RUN chmod +x /app/docker/entrypoint.sh
 
 EXPOSE 8000
