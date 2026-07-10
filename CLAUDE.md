@@ -43,6 +43,7 @@ All domain logic lives in the `exercises` app:
 - **Templates/static** are app-local (`exercises/templates/`, `exercises/static/exercises/`); all pages extend `base.html`.
 - **Styling is custom CSS only** (`static/exercises/css/styles.css` + per-template `<style>` blocks). The Tailwind Play CDN and DaisyUI were intentionally removed for page-weight reasons — do NOT add Tailwind/DaisyUI utility classes to templates expecting them to work; extend `styles.css` or use the existing custom classes (`btn`, `form-control`, `card-*`, etc.) instead. Auth form inputs get `class="form-control"` from `forms.py`.
 - **Landing page is a light preview**: `landing_page` serves only `FEATURED_EXERCISES_LIMIT` (8) exercises plus `total_exercises`, not the whole catalog; the full browsable list with search/pagination lives at `exercise_list` (`/exercises/`).
+- **Exercise images**: `Exercise.image` is an `ImageField(upload_to='exercises/')`; files live in `media/exercises/` (`MEDIA_ROOT = BASE_DIR / 'media'`). Media is only served by Django when `DEBUG=True` (see `kettelbell/urls.py`) — it is not wired up for production/Docker. Image filenames are derived from the exercise name lowercased with spaces→underscores and `:`/`,` stripped (e.g. `media/exercises/kettlebell_swing.jpg`); each `Exercise.image` in the DB points at its file by that convention. All images share a 3-panel start/middle/end sequence style — keep new ones consistent. Note: `kettlebell_clean.jpg` is a copy of the clean-and-press image because no dedicated clean illustration was ever generated.
 
 ## Notes
 
