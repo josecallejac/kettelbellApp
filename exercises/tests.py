@@ -363,6 +363,36 @@ class AdaptiveGeneratorTests(TestCase):
         self.assertEqual(generator._rpe_volume_adjustment(), 0)
         self.assertEqual(generator.adaptation_note, '')
 
+    def test_suggested_weight_by_level(self):
+        UserProfile.objects.create(user=self.user, available_weights='8, 12, 16')
+        cases = [('beginner', 8), ('intermediate', 12), ('advanced', 16)]
+        for level, expected in cases:
+            generator = RoutineGenerator(user=self.user, difficulty=level, focus='strength')
+            self.assertEqual(generator._suggested_weight('strength'), expected)
+
+    def test_suggested_weight_cardio_steps_down(self):
+        UserProfile.objects.create(user=self.user, available_weights='8, 12, 16')
+        generator = RoutineGenerator(user=self.user, difficulty='advanced', focus='cardio')
+        self.assertEqual(generator._suggested_weight('cardio'), 12)
+        # En el extremo inferior no baja más allá de la más liviana.
+        generator = RoutineGenerator(user=self.user, difficulty='beginner', focus='cardio')
+        self.assertEqual(generator._suggested_weight('cardio'), 8)
+
+    def test_generated_notes_include_suggested_weight(self):
+        UserProfile.objects.create(user=self.user, available_weights='8, 12, 16')
+        workout = self._generate()
+        main_notes = [
+            we.notes for we in workout.exercises.filter(exercise__category='strength')
+        ]
+        self.assertTrue(main_notes)
+        for notes in main_notes:
+            self.assertIn('Peso sugerido: 12 kg', notes)
+
+    def test_no_weight_suggestion_without_profile(self):
+        workout = self._generate()
+        for we in workout.exercises.all():
+            self.assertNotIn('Peso sugerido', we.notes)
+
     def test_player_prefills_last_weight(self):
         workout = self._generate()
         WorkoutLog.objects.create(

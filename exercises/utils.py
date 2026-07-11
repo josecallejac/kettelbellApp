@@ -1,4 +1,4 @@
-from .models import Exercise, Workout, WorkoutExercise, WorkoutLog
+from .models import Exercise, UserProfile, Workout, WorkoutExercise, WorkoutLog
 
 # Adaptación por historial
 RECENT_WORKOUTS_TO_AVOID = 3   # rutinas propias cuyos ejercicios se evita repetir
@@ -20,6 +20,8 @@ class RoutineGenerator:
         self.difficulty = difficulty
         self.focus = focus
         self.adaptation_note = ''
+        profile = UserProfile.objects.filter(user=user).first()
+        self.available_weights = profile.weights_list() if profile else []
 
     def generate(self):
         """
@@ -148,6 +150,22 @@ class RoutineGenerator:
             return 1
         return 0
 
+    def _suggested_weight(self, category):
+        """Peso sugerido (kg) según las kettlebells del perfil, o None."""
+        if not self.available_weights:
+            return None
+        weights = self.available_weights  # ya ordenados ascendente
+        index_by_level = {
+            'beginner': 0,
+            'intermediate': len(weights) // 2,
+            'advanced': len(weights) - 1,
+        }
+        index = index_by_level.get(self.difficulty, len(weights) // 2)
+        if category == 'cardio':
+            # Trabajo por intervalos: un paso más liviano que el de fuerza.
+            index = max(0, index - 1)
+        return weights[index]
+
     def _create_workout_exercises(self, workout, exercise_list):
         """
         Assigns sets/reps based on type and difficulty.
@@ -181,7 +199,12 @@ class RoutineGenerator:
                     sets = 3
                     reps = "10 reps"
                     notes = "Controlar la técnica en todo momento."
-            
+
+                if exercise.category != 'flexibility':
+                    weight = self._suggested_weight(exercise.category)
+                    if weight is not None:
+                        notes += f" Peso sugerido: {weight:g} kg."
+
             WorkoutExercise.objects.create(
                 workout=workout,
                 exercise=exercise,
