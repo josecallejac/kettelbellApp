@@ -28,5 +28,6 @@ urlpatterns = [
     
     # Dashboard & API
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('profile/', views.profile_view, name='profile'),
     path('api/log-workout/', views.log_workout, name='log_workout'),
 ]

@@ -209,6 +209,67 @@ class WorkoutExercise(models.Model):
     def __str__(self):
         return f"{self.workout.title} - {self.exercise.name}"
 
+class UserProfile(models.Model):
+    GOAL_CHOICES = [
+        ('strength', 'Ganar fuerza'),
+        ('fat_loss', 'Perder grasa'),
+        ('mobility', 'Movilidad y flexibilidad'),
+        ('general', 'Acondicionamiento general'),
+    ]
+
+    # Mapea el objetivo del perfil al enfoque que entiende el generador.
+    GOAL_TO_FOCUS = {
+        'strength': 'strength',
+        'fat_loss': 'cardio',
+        'mobility': 'flexibility',
+        'general': 'mix',
+    }
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    level = models.CharField(
+        max_length=20,
+        choices=Exercise.DIFFICULTY_CHOICES,
+        default='beginner',
+        verbose_name='Nivel',
+    )
+    goal = models.CharField(
+        max_length=20,
+        choices=GOAL_CHOICES,
+        default='general',
+        verbose_name='Objetivo',
+    )
+    available_weights = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name='Kettlebells disponibles (kg)',
+        help_text='Separadas por comas, ej: 8, 12, 16',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Perfil'
+        verbose_name_plural = 'Perfiles'
+
+    def __str__(self):
+        return f"Perfil de {self.user.username}"
+
+    @property
+    def focus(self):
+        return self.GOAL_TO_FOCUS.get(self.goal, 'mix')
+
+    def weights_list(self):
+        """Pesos disponibles como lista de números ordenada, ignorando basura."""
+        weights = []
+        for chunk in self.available_weights.split(','):
+            chunk = chunk.strip()
+            try:
+                weights.append(float(chunk))
+            except ValueError:
+                continue
+        return sorted(set(weights))
+
+
 class WorkoutLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_logs')
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE)

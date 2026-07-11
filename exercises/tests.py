@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from .models import Exercise, Favorite, Workout, WorkoutLog
+from .models import Exercise, Favorite, UserProfile, Workout, WorkoutLog
 from .utils import RoutineGenerator
 
 
@@ -252,6 +252,127 @@ class RoutineGeneratorTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Workout.objects.filter(created_by=self.user).exists())
+
+
+class ProfileTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='profuser', password='password123')
+        self.client.login(username='profuser', password='password123')
+        self.url = reverse('exercises:profile')
+
+    def test_profile_page_creates_profile_on_first_visit(self):
+        self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    def test_profile_update(self):
+        response = self.client.post(self.url, {
+            'level': 'advanced',
+            'goal': 'strength',
+            'available_weights': '8, 12, 16',
+        })
+        self.assertRedirects(response, self.url)
+        profile = UserProfile.objects.get(user=self.user)
+        self.assertEqual(profile.level, 'advanced')
+        self.assertEqual(profile.goal, 'strength')
+        self.assertEqual(profile.weights_list(), [8.0, 12.0, 16.0])
+
+    def test_weights_list_ignores_garbage(self):
+        profile = UserProfile.objects.create(
+            user=self.user, available_weights='16, doce, , 8.5, 16'
+        )
+        self.assertEqual(profile.weights_list(), [8.5, 16.0])
+
+    def test_generate_form_defaults_from_profile(self):
+        UserProfile.objects.create(user=self.user, level='advanced', goal='fat_loss')
+        response = self.client.get(reverse('exercises:generate_routine'))
+        self.assertContains(response, 'value="advanced" checked')
+        self.assertContains(response, 'value="cardio" checked')
+
+    def test_generate_form_defaults_without_profile(self):
+        response = self.client.get(reverse('exercises:generate_routine'))
+        self.assertContains(response, 'value="intermediate" checked')
+        self.assertContains(response, 'value="mix" checked')
+
+
+class AdaptiveGeneratorTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='adaptuser', password='password123')
+        self.strength = [
+            Exercise.objects.create(
+                name=f'Fuerza adaptativa {i}', description='x',
+                category='strength', difficulty='intermediate',
+            )
+            for i in range(4)
+        ]
+
+    def _generate(self, duration=18):
+        # duration=18 -> bloque principal de 2 ejercicios (sin ajuste RPE)
+        return RoutineGenerator(
+            user=self.user, duration_minutes=duration,
+            difficulty='intermediate', focus='strength',
+        ).generate()
+
+    def test_avoids_exercises_from_recent_workouts(self):
+        recent = self._generate()
+        recent_ids = {
+            we.exercise_id for we in recent.exercises.filter(exercise__category='strength')
+        }
+        self.assertEqual(len(recent_ids), 2)
+
+        new = self._generate()
+        new_ids = {
+            we.exercise_id for we in new.exercises.filter(exercise__category='strength')
+        }
+        self.assertEqual(len(new_ids), 2)
+        self.assertFalse(recent_ids & new_ids, 'No debería repetir ejercicios recientes')
+
+    def test_fills_with_recent_when_catalog_is_short(self):
+        # Con solo 4 ejercicios de fuerza, una rutina de 30 min (5 principales)
+        # necesita reutilizar recientes en vez de quedarse corta.
+        self._generate()
+        workout = self._generate(duration=30)
+        mains = workout.exercises.filter(exercise__category='strength').count()
+        self.assertGreaterEqual(mains, 4)
+
+    def test_rpe_high_reduces_volume(self):
+        workout = Workout.objects.create(
+            title='w', description='x', difficulty='intermediate',
+            estimated_duration=20, created_by=self.user,
+        )
+        for _ in range(3):
+            WorkoutLog.objects.create(user=self.user, workout=workout, rpe=9)
+        generator = RoutineGenerator(user=self.user, difficulty='intermediate', focus='strength')
+        self.assertEqual(generator._rpe_volume_adjustment(), -1)
+        self.assertIn('Volumen reducido', generator.adaptation_note)
+
+    def test_rpe_low_increases_volume(self):
+        workout = Workout.objects.create(
+            title='w', description='x', difficulty='intermediate',
+            estimated_duration=20, created_by=self.user,
+        )
+        for _ in range(3):
+            WorkoutLog.objects.create(user=self.user, workout=workout, rpe=3)
+        generator = RoutineGenerator(user=self.user, difficulty='intermediate', focus='strength')
+        self.assertEqual(generator._rpe_volume_adjustment(), 1)
+        self.assertIn('Volumen aumentado', generator.adaptation_note)
+
+    def test_no_history_no_adjustment(self):
+        generator = RoutineGenerator(user=self.user, difficulty='intermediate', focus='strength')
+        self.assertEqual(generator._rpe_volume_adjustment(), 0)
+        self.assertEqual(generator.adaptation_note, '')
+
+    def test_player_prefills_last_weight(self):
+        workout = self._generate()
+        WorkoutLog.objects.create(
+            user=self.user, workout=workout, kettlebell_weight=16,
+        )
+        self.client.login(username='adaptuser', password='password123')
+        response = self.client.get(
+            reverse('exercises:workout_session', kwargs={'slug': workout.slug})
+        )
+        self.assertContains(response, 'value="16"')
 
 
 class ExerciseSearchPaginationTests(TestCase):

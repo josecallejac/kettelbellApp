@@ -17,10 +17,11 @@ from django.views.decorators.http import require_POST
 from .forms import (
     CustomAuthenticationForm,
     CustomUserCreationForm,
+    UserProfileForm,
     WorkoutExerciseFormSet,
     WorkoutForm,
 )
-from .models import Exercise, Favorite, Workout, WorkoutLog
+from .models import Exercise, Favorite, UserProfile, Workout, WorkoutLog
 from .utils import RoutineGenerator
 
 logger = logging.getLogger(__name__)
@@ -359,10 +360,18 @@ def workout_session(request, slug):
     workout = get_visible_workout_or_404(request.user, slug)
     # Get all exercises ordered
     workout_exercises = workout.exercises.select_related('exercise').all().order_by('order')
-    
+
+    # Prefill del peso en el formulario de guardado: el de la última sesión.
+    last_weight = (
+        WorkoutLog.objects.filter(user=request.user, kettlebell_weight__isnull=False)
+        .values_list('kettlebell_weight', flat=True)
+        .first()
+    )
+
     context = {
         'workout': workout,
         'workout_exercises': workout_exercises,
+        'last_weight': f'{float(last_weight):g}' if last_weight is not None else '',
     }
     return render(request, 'exercises/session_player.html', context)
 
@@ -434,6 +443,20 @@ def _optional_int(data, key, minimum, maximum):
     if not minimum <= value <= maximum:
         return False, None
     return True, value
+
+
+@login_required
+def profile_view(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Perfil actualizado.')
+            return redirect('exercises:profile')
+    else:
+        form = UserProfileForm(instance=profile)
+    return render(request, 'exercises/profile.html', {'form': form})
 
 
 @login_required
@@ -544,6 +567,15 @@ VALID_FOCUS_OPTIONS = {'strength', 'cardio', 'flexibility', 'full_body', 'mix'}
 VALID_DIFFICULTY_OPTIONS = {value for value, _ in Exercise.DIFFICULTY_CHOICES}
 
 
+def _generate_routine_defaults(user):
+    """Preselección del formulario según el perfil del usuario (si existe)."""
+    profile = UserProfile.objects.filter(user=user).first()
+    return {
+        'default_difficulty': profile.level if profile else 'intermediate',
+        'default_focus': profile.focus if profile else 'mix',
+    }
+
+
 @login_required
 def generate_routine_view(request):
     if request.method == 'POST':
@@ -561,7 +593,7 @@ def generate_routine_view(request):
             or focus not in VALID_FOCUS_OPTIONS
         ):
             messages.error(request, 'Los datos del formulario no son válidos. Revisa la duración, el nivel y el enfoque.')
-            return render(request, 'exercises/generate_routine.html')
+            return render(request, 'exercises/generate_routine.html', _generate_routine_defaults(request.user))
 
         try:
             generator = RoutineGenerator(
@@ -576,4 +608,4 @@ def generate_routine_view(request):
             logger.exception("Error generando la rutina")
             messages.error(request, 'No se pudo generar la rutina. Inténtalo de nuevo.')
 
-    return render(request, 'exercises/generate_routine.html')
+    return render(request, 'exercises/generate_routine.html', _generate_routine_defaults(request.user))

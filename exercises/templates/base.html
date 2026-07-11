@@ -45,6 +45,7 @@
             <a href="{% url 'exercises:generate_routine' %}" class="nav-link nav-link-feature">Rutina IA</a>
             {% if user.is_authenticated %}
             <a href="{% url 'exercises:dashboard' %}" class="nav-link">Mi Panel</a>
+            <a href="{% url 'exercises:profile' %}" class="nav-link">Mi Perfil</a>
             <form action="{% url 'exercises:logout' %}" method="post" class="nav-form">
                 {% csrf_token %}
                 <button type="submit" class="nav-link logout-btn">Cerrar sesion</button>

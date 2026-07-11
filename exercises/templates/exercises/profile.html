@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi Perfil - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="create-workout-section">
+    <div class="container-sm">
+        <header class="section-header">
+            <h1 class="gradient-text">Mi Perfil</h1>
+            <p class="section-subtitle">Estos datos personalizan las rutinas que generamos para ti.</p>
+        </header>
+
+        <form method="post" class="create-form">
+            {% csrf_token %}
+
+            <div class="form-card main-info">
+                <h2 class="card-title">Preferencias de entrenamiento</h2>
+
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="{{ form.level.id_for_label }}">Tu nivel</label>
+                        {{ form.level }}
+                    </div>
+                    <div class="form-group half">
+                        <label for="{{ form.goal.id_for_label }}">Tu objetivo</label>
+                        {{ form.goal }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.available_weights.id_for_label }}">Kettlebells disponibles (kg)</label>
+                    {{ form.available_weights }}
+                    <small class="field-hint">{{ form.available_weights.help_text }}</small>
+                    {% if form.available_weights.errors %}
+                    <small class="field-error">{{ form.available_weights.errors.0 }}</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-full">Guardar perfil</button>
+        </form>
+    </div>
+</section>
+
+<style>
+    .field-hint {
+        display: block;
+        margin-top: 4px;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+    }
+
+    .field-error {
+        display: block;
+        margin-top: 4px;
+        color: #f87171;
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}

@@ -3,7 +3,7 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 from django.forms import inlineformset_factory
 
-from .models import Workout, WorkoutExercise
+from .models import UserProfile, Workout, WorkoutExercise
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -33,6 +33,17 @@ class WorkoutForm(forms.ModelForm):
             'estimated_duration': forms.NumberInput(attrs={'class': 'form-input'}),
             'is_public': forms.CheckboxInput(attrs={'class': 'form-checkbox'}),
         }
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['level', 'goal', 'available_weights']
+        widgets = {
+            'level': forms.Select(attrs={'class': 'form-select'}),
+            'goal': forms.Select(attrs={'class': 'form-select'}),
+            'available_weights': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Ej: 8, 12, 16'}),
+        }
+
 
 WorkoutExerciseFormSet = inlineformset_factory(
     Workout, WorkoutExercise,

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exercise, Workout, WorkoutExercise, WorkoutLog
+from .models import Exercise, UserProfile, Workout, WorkoutExercise, WorkoutLog
 
 
 @admin.register(Exercise)
@@ -46,6 +46,13 @@ class WorkoutAdmin(admin.ModelAdmin):
     search_fields = ['title', 'description', 'created_by__username']
     prepopulated_fields = {'slug': ('title',)}
     inlines = [WorkoutExerciseInline]
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'level', 'goal', 'available_weights', 'updated_at']
+    list_filter = ['level', 'goal']
+    search_fields = ['user__username']
+
 
 @admin.register(WorkoutLog)
 class WorkoutLogAdmin(admin.ModelAdmin):

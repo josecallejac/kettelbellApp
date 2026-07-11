@@ -44,7 +44,7 @@
                     <label class="gen-label"><span class="dot dot-green"></span> Nivel de Dificultad</label>
                     <div class="option-grid cols-3">
                         <label class="option-tile">
-                            <input type="radio" name="difficulty" value="beginner">
+                            <input type="radio" name="difficulty" value="beginner" {% if default_difficulty == 'beginner' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">🌱</span>
                                 <span class="tile-name">Principiante</span>
@@ -52,7 +52,7 @@
                             </span>
                         </label>
                         <label class="option-tile">
-                            <input type="radio" name="difficulty" value="intermediate" checked>
+                            <input type="radio" name="difficulty" value="intermediate" {% if default_difficulty != 'beginner' and default_difficulty != 'advanced' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">⚡</span>
                                 <span class="tile-name">Intermedio</span>
@@ -60,7 +60,7 @@
                             </span>
                         </label>
                         <label class="option-tile">
-                            <input type="radio" name="difficulty" value="advanced">
+                            <input type="radio" name="difficulty" value="advanced" {% if default_difficulty == 'advanced' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">🔥</span>
                                 <span class="tile-name">Avanzado</span>
@@ -74,31 +74,38 @@
                     <label class="gen-label"><span class="dot dot-purple"></span> Enfoque Principal</label>
                     <div class="option-grid cols-4">
                         <label class="option-tile">
-                            <input type="radio" name="focus" value="mix" checked>
+                            <input type="radio" name="focus" value="mix" {% if default_focus != 'strength' and default_focus != 'cardio' and default_focus != 'full_body' and default_focus != 'flexibility' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">⚖️</span>
                                 <span class="tile-name">Balanceado</span>
                             </span>
                         </label>
                         <label class="option-tile">
-                            <input type="radio" name="focus" value="strength">
+                            <input type="radio" name="focus" value="strength" {% if default_focus == 'strength' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">💪</span>
                                 <span class="tile-name">Fuerza</span>
                             </span>
                         </label>
                         <label class="option-tile">
-                            <input type="radio" name="focus" value="cardio">
+                            <input type="radio" name="focus" value="cardio" {% if default_focus == 'cardio' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">🫀</span>
                                 <span class="tile-name">Cardio/HIIT</span>
                             </span>
                         </label>
                         <label class="option-tile">
-                            <input type="radio" name="focus" value="full_body">
+                            <input type="radio" name="focus" value="full_body" {% if default_focus == 'full_body' %}checked{% endif %}>
                             <span class="tile-body tile-tall">
                                 <span class="tile-emoji">🎯</span>
                                 <span class="tile-name">Full Body</span>
+                            </span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="focus" value="flexibility" {% if default_focus == 'flexibility' %}checked{% endif %}>
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">🧘</span>
+                                <span class="tile-name">Movilidad</span>
                             </span>
                         </label>
                     </div>
