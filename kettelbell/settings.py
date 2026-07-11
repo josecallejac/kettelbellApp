@@ -11,6 +11,7 @@ from django.core.exceptions import ImproperlyConfigured
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 HAS_WHITENOISE = find_spec('whitenoise') is not None
+HAS_DEBUG_TOOLBAR = find_spec('debug_toolbar') is not None
 
 
 # Quick-start development settings - unsuitable for production
@@ -81,6 +82,13 @@ MIDDLEWARE = [
 
 if HAS_WHITENOISE:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+
+# Debug toolbar: solo en desarrollo y solo si el paquete está instalado
+# (viene de requirements-dev.txt; en produccion/Docker no existe).
+if DEBUG and HAS_DEBUG_TOOLBAR:
+    INSTALLED_APPS.append('debug_toolbar')
+    MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')
+    INTERNAL_IPS = ['127.0.0.1']
 
 ROOT_URLCONF = 'kettelbell.urls'
 
