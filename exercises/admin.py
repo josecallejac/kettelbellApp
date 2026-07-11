@@ -49,6 +49,6 @@ class WorkoutAdmin(admin.ModelAdmin):
 
 @admin.register(WorkoutLog)
 class WorkoutLogAdmin(admin.ModelAdmin):
-    list_display = ['user', 'workout', 'completed_at']
-    list_filter = ['completed_at']
-    search_fields = ['user__username', 'workout__title']
+    list_display = ['user', 'workout', 'completed_at', 'duration_minutes', 'kettlebell_weight', 'rpe']
+    list_filter = ['completed_at', 'rpe']
+    search_fields = ['user__username', 'workout__title', 'notes']

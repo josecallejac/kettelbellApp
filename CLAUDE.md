@@ -15,7 +15,7 @@ venv\Scripts\python.exe manage.py runserver        # dev server (SQLite by defau
 venv\Scripts\python.exe manage.py migrate
 venv\Scripts\python.exe manage.py test exercises   # run app tests
 venv\Scripts\python.exe manage.py test exercises.tests.AuthTests.test_login_user  # single test
-venv\Scripts\python.exe populate_exercises.py      # seed the exercise catalog
+venv\Scripts\python.exe manage.py seed_catalog     # seed/update the exercise catalog (upsert by name; --clear wipes first)
 venv\Scripts\python.exe test_routine_generator.py  # standalone smoke test for RoutineGenerator (not a Django TestCase; writes to the active DB)
 ```
 
@@ -26,7 +26,7 @@ docker compose up --build
 # App: http://localhost:8000 | Adminer: http://localhost:8081 | Postgres: localhost:5433 (user/pass/db: kettlebell)
 ```
 
-`docker/entrypoint.sh` waits for Postgres, then runs `migrate` and `collectstatic` automatically on container start.
+`docker/entrypoint.sh` waits for Postgres, then runs `migrate`, `seed_catalog` and `collectstatic` automatically on container start.
 
 ## Database switching
 
@@ -48,4 +48,4 @@ All domain logic lives in the `exercises` app:
 ## Notes
 
 - UI text, model verbose_names, and seed data are in Spanish; keep new user-facing strings in Spanish. `fix_exercise_text_encoding.py` exists because of past mojibake issues (UTF-8 read as latin-1) in exercise text — beware of encoding when writing seed data on Windows.
-- `populate_exercises.py` is the source of the exercise catalog (~50 exercises with full coaching text).
+- `populate_exercises.py` is the source of the exercise catalog (~50 exercises with full coaching text); the `seed_catalog` management command wraps it (and the Docker entrypoint runs it on every start), so prefer `manage.py seed_catalog` over executing the script directly.

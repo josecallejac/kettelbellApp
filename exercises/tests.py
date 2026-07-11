@@ -382,6 +382,92 @@ class DashboardTests(TestCase):
         self.assertIn(self.mine, workouts)
         self.assertNotIn(self.foreign, workouts)
 
+    def test_dashboard_stats_reflect_logs(self):
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=25, rpe=7,
+        )
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=35, rpe=9,
+        )
+        WorkoutLog.objects.create(user=self.other, workout=self.foreign, rpe=1)
+
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+
+        self.assertEqual(response.context['total_workouts'], 2)
+        self.assertEqual(response.context['sessions_this_week'], 2)
+        self.assertEqual(response.context['streak_days'], 1)
+        self.assertEqual(response.context['total_minutes'], 60)
+        self.assertEqual(response.context['avg_rpe'], 8.0)
+        chart = response.context['weekly_chart']
+        self.assertEqual(len(chart), 8)
+        self.assertEqual(chart[-1]['count'], 2)
+
+    def test_dashboard_stats_empty_history(self):
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        self.assertEqual(response.context['total_workouts'], 0)
+        self.assertEqual(response.context['streak_days'], 0)
+        self.assertEqual(response.context['total_minutes'], 0)
+        self.assertIsNone(response.context['avg_rpe'])
+
+
+class WorkoutLogApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='loguser', password='password123')
+        self.workout = Workout.objects.create(
+            title='Rutina log', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        self.url = reverse('exercises:log_workout')
+        self.client.login(username='loguser', password='password123')
+
+    def _log(self, payload):
+        return self.client.post(self.url, json.dumps(payload), content_type='application/json')
+
+    def test_log_with_metrics(self):
+        response = self._log({
+            'workout_id': self.workout.id,
+            'duration_minutes': 32,
+            'kettlebell_weight': 16.5,
+            'rpe': 8,
+            'notes': 'Buen ritmo, subir peso la próxima.',
+        })
+        self.assertEqual(response.status_code, 200)
+        log = WorkoutLog.objects.get(user=self.user)
+        self.assertEqual(log.duration_minutes, 32)
+        self.assertEqual(float(log.kettlebell_weight), 16.5)
+        self.assertEqual(log.rpe, 8)
+        self.assertEqual(log.notes, 'Buen ritmo, subir peso la próxima.')
+
+    def test_log_without_metrics_still_works(self):
+        response = self._log({'workout_id': self.workout.id})
+        self.assertEqual(response.status_code, 200)
+        log = WorkoutLog.objects.get(user=self.user)
+        self.assertIsNone(log.duration_minutes)
+        self.assertIsNone(log.rpe)
+        self.assertEqual(log.notes, '')
+
+    def test_session_player_renders_with_metrics_form(self):
+        response = self.client.get(
+            reverse('exercises:workout_session', kwargs={'slug': self.workout.slug})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="metrics-form"')
+        self.assertContains(response, 'id="rpe-scale"')
+
+    def test_log_rejects_invalid_metrics(self):
+        for payload in (
+            {'workout_id': self.workout.id, 'rpe': 11},
+            {'workout_id': self.workout.id, 'rpe': 0},
+            {'workout_id': self.workout.id, 'duration_minutes': 'mucho'},
+            {'workout_id': self.workout.id, 'kettlebell_weight': -4},
+            {'workout_id': self.workout.id, 'notes': 'x' * 301},
+        ):
+            response = self._log(payload)
+            self.assertEqual(response.status_code, 400, payload)
+        self.assertEqual(WorkoutLog.objects.count(), 0)
+
 
 class BaseWorkoutsTests(TestCase):
     """Las rutinas base sembradas por la migración 0010 deben existir,

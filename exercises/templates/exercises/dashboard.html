@@ -28,7 +28,48 @@
                     <span class="stat-label">Entrenamientos Completados</span>
                 </div>
             </div>
-            <!-- Future stats could go here like 'Total Minutes', 'Calories Burned' -->
+            <div class="stat-card">
+                <span class="stat-icon">📅</span>
+                <div class="stat-info">
+                    <span class="stat-value">{{ sessions_this_week }}</span>
+                    <span class="stat-label">Sesiones esta semana</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon">🔥</span>
+                <div class="stat-info">
+                    <span class="stat-value">{{ streak_days }}</span>
+                    <span class="stat-label">Racha (días seguidos)</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon">⏱️</span>
+                <div class="stat-info">
+                    <span class="stat-value">{{ total_minutes }}</span>
+                    <span class="stat-label">Minutos entrenados</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icon">💪</span>
+                <div class="stat-info">
+                    <span class="stat-value">{% if avg_rpe %}{{ avg_rpe }}{% else %}—{% endif %}</span>
+                    <span class="stat-label">Esfuerzo promedio (RPE)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sesiones por semana -->
+        <div class="weekly-chart-section">
+            <h2 class="column-title">Sesiones por semana</h2>
+            <div class="weekly-chart" role="img" aria-label="Sesiones por semana de las últimas 8 semanas">
+                {% for week in weekly_chart %}
+                <div class="weekly-bar-slot">
+                    <span class="weekly-count">{{ week.count }}</span>
+                    <div class="weekly-bar" style="height: {% if week.pct %}{{ week.pct }}%{% else %}2px{% endif %};"></div>
+                    <span class="weekly-label">{{ week.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
         <!-- Mis Rutinas -->
@@ -80,6 +121,12 @@
                         <div class="activity-content">
                             <h3 class="activity-name">{{ log.workout.title }}</h3>
                             <span class="activity-date">{{ log.completed_at|date:"d M, Y - H:i" }}</span>
+                            <div class="activity-metrics">
+                                {% if log.duration_minutes %}<span class="metric-chip">⏱️ {{ log.duration_minutes }} min</span>{% endif %}
+                                {% if log.kettlebell_weight %}<span class="metric-chip">🏋️ {{ log.kettlebell_weight }} kg</span>{% endif %}
+                                {% if log.rpe %}<span class="metric-chip">💪 RPE {{ log.rpe }}</span>{% endif %}
+                            </div>
+                            {% if log.notes %}<p class="activity-notes">{{ log.notes }}</p>{% endif %}
                         </div>
                         <a href="{% url 'exercises:workout_detail' log.workout.slug %}" class="btn btn-sm btn-outline">Ver</a>
                     </div>
@@ -211,6 +258,74 @@
     .stat-label {
         font-size: 0.875rem;
         color: var(--text-muted);
+    }
+
+    /* Gráfico semanal */
+    .weekly-chart-section {
+        margin-bottom: var(--spacing-2xl);
+    }
+
+    .weekly-chart {
+        display: flex;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+        background: var(--bg-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: var(--radius-xl);
+        padding: var(--spacing-lg);
+        height: 180px;
+    }
+
+    .weekly-bar-slot {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .weekly-count {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .weekly-bar {
+        width: 100%;
+        max-width: 48px;
+        min-height: 2px;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        background: linear-gradient(180deg, var(--primary-light, #818cf8), rgba(99, 102, 241, 0.4));
+    }
+
+    .weekly-label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .activity-metrics {
+        display: flex;
+        gap: var(--spacing-xs);
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+
+    .metric-chip {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: var(--radius-md);
+        padding: 0.15rem 0.5rem;
+    }
+
+    .activity-notes {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin: 4px 0 0;
+        font-style: italic;
     }
 
     .dashboard-grid {

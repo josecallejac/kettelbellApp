@@ -1,13 +1,16 @@
 import json
 import logging
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -363,22 +366,75 @@ def workout_session(request, slug):
     }
     return render(request, 'exercises/session_player.html', context)
 
+WEEKLY_CHART_WEEKS = 8
+
+
+def compute_streak_days(log_dates, today):
+    """Días consecutivos con al menos una sesión, terminando hoy o ayer."""
+    dates = set(log_dates)
+    current = today if today in dates else today - timedelta(days=1)
+    streak = 0
+    while current in dates:
+        streak += 1
+        current -= timedelta(days=1)
+    return streak
+
+
+def build_weekly_chart(log_dates, today):
+    """Sesiones por semana (lunes a domingo) de las últimas WEEKLY_CHART_WEEKS."""
+    this_monday = today - timedelta(days=today.weekday())
+    weeks = []
+    for offset in range(WEEKLY_CHART_WEEKS - 1, -1, -1):
+        start = this_monday - timedelta(weeks=offset)
+        end = start + timedelta(days=7)
+        count = sum(1 for d in log_dates if start <= d < end)
+        weeks.append({'label': start.strftime('%d/%m'), 'count': count})
+    max_count = max((week['count'] for week in weeks), default=0)
+    for week in weeks:
+        week['pct'] = round(week['count'] * 100 / max_count) if max_count else 0
+    return weeks
+
+
 @login_required
 def dashboard(request):
-    recent_logs = WorkoutLog.objects.filter(user=request.user).select_related('workout')[:5]
+    logs = WorkoutLog.objects.filter(user=request.user)
+    recent_logs = logs.select_related('workout')[:5]
     favorites = Favorite.objects.filter(user=request.user).select_related('exercise')
     favorite_exercises = [f.exercise for f in favorites]
-
-    total_workouts = WorkoutLog.objects.filter(user=request.user).count()
     my_workouts = Workout.objects.filter(created_by=request.user).order_by('-created_at')
+
+    today = timezone.localdate()
+    log_dates = [timezone.localtime(dt).date() for dt in logs.values_list('completed_at', flat=True)]
+    week_ago = today - timedelta(days=6)
+
+    stats = logs.aggregate(total_minutes=Sum('duration_minutes'), avg_rpe=Avg('rpe'))
 
     context = {
         'recent_logs': recent_logs,
         'favorite_exercises': favorite_exercises,
-        'total_workouts': total_workouts,
+        'total_workouts': len(log_dates),
         'my_workouts': my_workouts,
+        'sessions_this_week': sum(1 for d in log_dates if d >= week_ago),
+        'streak_days': compute_streak_days(log_dates, today),
+        'total_minutes': stats['total_minutes'] or 0,
+        'avg_rpe': round(stats['avg_rpe'], 1) if stats['avg_rpe'] is not None else None,
+        'weekly_chart': build_weekly_chart(log_dates, today),
     }
     return render(request, 'exercises/dashboard.html', context)
+
+def _optional_int(data, key, minimum, maximum):
+    """Entero opcional del payload: (ok, valor). None/ausente es válido."""
+    raw = data.get(key)
+    if raw is None:
+        return True, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return False, None
+    if not minimum <= value <= maximum:
+        return False, None
+    return True, value
+
 
 @login_required
 @require_POST
@@ -389,8 +445,33 @@ def log_workout(request):
     except (TypeError, ValueError):
         return JsonResponse({'status': 'error', 'message': 'Petición inválida'}, status=400)
 
+    duration_ok, duration = _optional_int(data, 'duration_minutes', 1, 600)
+    rpe_ok, rpe = _optional_int(data, 'rpe', 1, 10)
+
+    weight = data.get('kettlebell_weight')
+    weight_ok = True
+    if weight is not None:
+        try:
+            weight = Decimal(str(weight))
+            weight_ok = Decimal('1') <= weight <= Decimal('200')
+        except InvalidOperation:
+            weight_ok = False
+
+    notes = data.get('notes') or ''
+    notes_ok = isinstance(notes, str) and len(notes) <= 300
+
+    if not (duration_ok and rpe_ok and weight_ok and notes_ok):
+        return JsonResponse({'status': 'error', 'message': 'Métricas inválidas'}, status=400)
+
     workout = get_object_or_404(get_visible_workouts(request.user), id=workout_id)
-    WorkoutLog.objects.create(user=request.user, workout=workout)
+    WorkoutLog.objects.create(
+        user=request.user,
+        workout=workout,
+        duration_minutes=duration,
+        kettlebell_weight=weight,
+        rpe=rpe,
+        notes=notes.strip(),
+    )
 
     return JsonResponse({'status': 'success'})
 
