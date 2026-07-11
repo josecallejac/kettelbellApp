@@ -1,6 +1,10 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
+from django.forms import inlineformset_factory
+
+from .models import Workout, WorkoutExercise
+
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -10,20 +14,13 @@ class CustomUserCreationForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            field.widget.attrs.update({
-                'class': 'w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200'
-            })
+            field.widget.attrs.update({'class': 'form-control'})
 
 class CustomAuthenticationForm(AuthenticationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            field.widget.attrs.update({
-                'class': 'w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200'
-            })
-
-from django.forms import inlineformset_factory
-from .models import Workout, WorkoutExercise
+            field.widget.attrs.update({'class': 'form-control'})
 
 class WorkoutForm(forms.ModelForm):
     class Meta:

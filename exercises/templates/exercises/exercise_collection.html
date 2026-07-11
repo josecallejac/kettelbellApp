@@ -13,6 +13,17 @@
             <div class="detail-kicker">{{ page_kicker }}</div>
             <h1 class="section-title gradient-text">{{ page_title }}</h1>
             <p class="section-subtitle">{{ page_subtitle }}</p>
+
+            {% if show_search %}
+            <form method="get" action="{% url 'exercises:exercise_list' %}" class="search-form" role="search">
+                <input type="search" name="q" value="{{ search_query }}" class="search-input"
+                       placeholder="Buscar por nombre, musculo o equipo..." aria-label="Buscar ejercicios">
+                <button type="submit" class="btn btn-primary search-btn">Buscar</button>
+                {% if search_query %}
+                <a href="{% url 'exercises:exercise_list' %}" class="search-clear">Limpiar</a>
+                {% endif %}
+            </form>
+            {% endif %}
         </header>
 
         {% if exercises %}
@@ -21,7 +32,7 @@
             <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
                 <div class="card-image-wrapper">
                     {% if exercise.image %}
-                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
+                    <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="card-image">
                     {% else %}
                     <div class="card-image-placeholder">
                         <span class="placeholder-icon">&#127947;</span>
@@ -53,6 +64,18 @@
             </div>
             {% endfor %}
         </div>
+
+        {% if page_obj.has_other_pages %}
+        <nav class="pagination" aria-label="Paginacion">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}" class="page-link">&larr; Anterior</a>
+            {% endif %}
+            <span class="page-status">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}" class="page-link">Siguiente &rarr;</a>
+            {% endif %}
+        </nav>
+        {% endif %}
         {% else %}
         <div class="empty-state">
             <div class="empty-icon">&#128203;</div>
@@ -73,6 +96,15 @@
     .favorite-btn:hover { background: rgba(30, 41, 59, 0.9); transform: scale(1.1); }
     .favorite-btn .heart-icon { color: white; font-size: 1.2rem; line-height: 1; transition: color 0.3s ease; }
     .favorite-btn.active .heart-icon { color: #ef4444; }
+    .search-form { display: flex; gap: var(--spacing-xs); justify-content: center; align-items: center; margin-top: var(--spacing-lg); flex-wrap: wrap; }
+    .search-input { flex: 1; min-width: 240px; max-width: 420px; background: var(--bg-secondary); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-primary); padding: 0.7rem 1rem; border-radius: var(--radius-lg); }
+    .search-input:focus { border-color: var(--primary-color); outline: none; }
+    .search-clear { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }
+    .search-clear:hover { color: var(--primary-light); }
+    .pagination { display: flex; justify-content: center; align-items: center; gap: var(--spacing-lg); margin-top: var(--spacing-2xl); }
+    .page-link { color: var(--primary-light); text-decoration: none; font-weight: 700; padding: 0.5rem 1rem; border-radius: var(--radius-lg); border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.2s; }
+    .page-link:hover { background: var(--bg-secondary); border-color: var(--primary-color); }
+    .page-status { color: var(--text-muted); font-size: 0.9rem; }
 </style>
 
 <script>

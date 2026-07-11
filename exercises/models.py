@@ -1,7 +1,21 @@
+from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.text import slugify
-from django.contrib.auth.models import User
+
+
+def build_unique_slug(instance, source_text):
+    """Genera un slug único para el modelo de la instancia a partir del texto dado."""
+    base_slug = slugify(source_text) or 'item'
+    slug = base_slug
+    counter = 1
+    queryset = instance.__class__.objects.exclude(pk=instance.pk)
+    while queryset.filter(slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    return slug
 
 class Favorite(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
@@ -9,7 +23,9 @@ class Favorite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'exercise')
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'exercise'], name='unique_user_exercise_favorite'),
+        ]
         verbose_name = 'Favorito'
         verbose_name_plural = 'Favoritos'
 
@@ -41,15 +57,23 @@ class Exercise(models.Model):
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,
+        db_index=True,
         verbose_name='Categoría'
     )
     difficulty = models.CharField(
         max_length=20,
         choices=DIFFICULTY_CHOICES,
+        db_index=True,
         verbose_name='Dificultad'
     )
     benefits = models.TextField(verbose_name='Beneficios', blank=True)
-    image = models.ImageField(upload_to='exercises/', blank=True, null=True, verbose_name='Imagen')
+    image = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Imagen',
+        help_text='Nombre de archivo dentro de exercises/static/exercises/img/catalog/ (ej: kettlebell_swing.jpg)'
+    )
     video_url = models.URLField(
         verbose_name='URL del video',
         blank=True,
@@ -116,11 +140,23 @@ class Exercise(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = build_unique_slug(self, self.name)
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
         return reverse('exercises:detail', kwargs={'slug': self.slug})
+
+    @property
+    def image_url(self):
+        """URL estática de la imagen del catálogo, o '' si no tiene o no existe."""
+        if not self.image:
+            return ''
+        try:
+            return static(f'exercises/img/catalog/{self.image}')
+        except ValueError:
+            # Con ManifestStaticFilesStorage un archivo inexistente lanza
+            # ValueError; mejor no mostrar imagen que romper la página.
+            return ''
 
 class Workout(models.Model):
     DIFFICULTY_CHOICES = [
@@ -134,19 +170,20 @@ class Workout(models.Model):
     description = models.TextField(verbose_name='Descripción')
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, verbose_name='Dificultad')
     estimated_duration = models.PositiveIntegerField(help_text='Duración estimada en minutos', verbose_name='Duración estimada')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workouts',
+        verbose_name='Creado por',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     is_public = models.BooleanField(default=True, verbose_name='Es público')
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.title)
-            slug = base_slug
-            counter = 1
-            # Ensure unique slug
-            while self.__class__.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            self.slug = slug
+            self.slug = build_unique_slug(self, self.title)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -176,6 +213,25 @@ class WorkoutLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_logs')
     workout = models.ForeignKey(Workout, on_delete=models.CASCADE)
     completed_at = models.DateTimeField(auto_now_add=True)
+    duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Duración real (minutos)',
+    )
+    kettlebell_weight = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        verbose_name='Peso de kettlebell (kg)',
+    )
+    rpe = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Esfuerzo percibido (RPE 1-10)',
+    )
+    notes = models.CharField(max_length=300, blank=True, default='', verbose_name='Notas')
     
     class Meta:
         ordering = ['-completed_at']

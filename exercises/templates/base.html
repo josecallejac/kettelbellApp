@@ -13,27 +13,13 @@
     {% load static %}
     <link rel="icon" type="image/svg+xml" href="{% static 'exercises/img/favicon.svg' %}?v=20260507" />
     <meta name="theme-color" content="#0f172a" />
-    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260507-hero-controls" />
+    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260706-light" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#6366f1',
-              secondary: '#ec4899',
-            }
-          }
-        }
-      }
-    </script>
   </head>
   <body>
     <nav class="navbar" aria-label="Navegacion principal">
@@ -72,7 +58,16 @@
       </div>
     </nav>
 
-    <main>{% block content %} {% endblock %}</main>
+    <main>
+      {% if messages %}
+      <div class="container messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% block content %} {% endblock %}
+    </main>
 
     <footer class="footer">
       <div class="container">

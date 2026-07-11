@@ -6,28 +6,56 @@ import os
 from importlib.util import find_spec
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 HAS_WHITENOISE = find_spec('whitenoise') is not None
+HAS_DEBUG_TOOLBAR = find_spec('debug_toolbar') is not None
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-6norpgv332#!826!u*(-7b@bici7(9&16g6$nm!(33eba(b+lg',
-)
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
+
+# SECURITY WARNING: keep the secret key used in production secret!
+# La clave se toma SIEMPRE del entorno (DJANGO_SECRET_KEY). Si no existe, se
+# genera una efimera solo para desarrollo. Define DJANGO_SECRET_KEY en tu .env
+# (o en el entorno del servidor) para produccion y para mantener las sesiones
+# entre reinicios.
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if not DEBUG:
+        # Con varios workers (gunicorn) cada proceso generaria una clave
+        # distinta y las sesiones/CSRF fallarian de forma aleatoria.
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY es obligatoria cuando DJANGO_DEBUG=False.'
+        )
+    from django.core.management.utils import get_random_secret_key
+    SECRET_KEY = get_random_secret_key()
 
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
+# Activar solo cuando la app se sirve detrás de HTTPS (el Docker local va por HTTP).
+if os.getenv('DJANGO_ENABLE_HTTPS', 'False').lower() in ('1', 'true', 'yes', 'on'):
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -39,7 +67,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'debug_toolbar',
     'exercises',
 ]
 
@@ -51,15 +78,17 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
-]
-
-INTERNAL_IPS = [
-    "127.0.0.1",
 ]
 
 if HAS_WHITENOISE:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+
+# Debug toolbar: solo en desarrollo y solo si el paquete está instalado
+# (viene de requirements-dev.txt; en produccion/Docker no existe).
+if DEBUG and HAS_DEBUG_TOOLBAR:
+    INSTALLED_APPS.append('debug_toolbar')
+    MIDDLEWARE.append('debug_toolbar.middleware.DebugToolbarMiddleware')
+    INTERNAL_IPS = ['127.0.0.1']
 
 ROOT_URLCONF = 'kettelbell.urls'
 
@@ -126,9 +155,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
@@ -151,11 +180,34 @@ if HAS_WHITENOISE:
         },
     }
 
-# Media files (uploads)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Autenticación
+LOGIN_URL = 'exercises:login'
+LOGIN_REDIRECT_URL = 'exercises:landing'
+LOGOUT_REDIRECT_URL = 'exercises:landing'
+
+# Logging: todo a consola (visible en runserver y en los logs del contenedor)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'default': {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+    },
+}

@@ -26,7 +26,7 @@
             <div class="exercise-card" data-name="{{ exercise.name|lower }}" data-difficulty="{{ exercise.difficulty }}">
                 <div class="card-image-wrapper">
                     {% if exercise.image %}
-                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image">
+                    <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="card-image">
                     {% else %}
                     <div class="card-image-placeholder">
                         <span class="placeholder-icon">🏋️</span>

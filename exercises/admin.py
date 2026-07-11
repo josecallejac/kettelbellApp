@@ -1,5 +1,7 @@
 from django.contrib import admin
+
 from .models import Exercise, Workout, WorkoutExercise, WorkoutLog
+
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
@@ -39,14 +41,14 @@ class WorkoutExerciseInline(admin.TabularInline):
 
 @admin.register(Workout)
 class WorkoutAdmin(admin.ModelAdmin):
-    list_display = ['title', 'difficulty', 'estimated_duration', 'is_public', 'created_at']
+    list_display = ['title', 'created_by', 'difficulty', 'estimated_duration', 'is_public', 'created_at']
     list_filter = ['difficulty', 'is_public']
-    search_fields = ['title', 'description']
+    search_fields = ['title', 'description', 'created_by__username']
     prepopulated_fields = {'slug': ('title',)}
     inlines = [WorkoutExerciseInline]
 
 @admin.register(WorkoutLog)
 class WorkoutLogAdmin(admin.ModelAdmin):
-    list_display = ['user', 'workout', 'completed_at']
-    list_filter = ['completed_at']
-    search_fields = ['user__username', 'workout__title']
+    list_display = ['user', 'workout', 'completed_at', 'duration_minutes', 'kettlebell_weight', 'rpe']
+    list_filter = ['completed_at', 'rpe']
+    search_fields = ['user__username', 'workout__title', 'notes']

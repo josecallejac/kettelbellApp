@@ -1,197 +1,198 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="min-h-screen py-12 flex items-center justify-center relative overflow-hidden">
-    <!-- Background Elements -->
-    <div class="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[100px]"></div>
-        <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[100px]"></div>
-    </div>
+{% block title %}Generador de Rutinas IA - KettleBell Pro{% endblock %}
 
-    <div class="container mx-auto px-4 relative z-10">
-        <div class="max-w-3xl mx-auto">
-            <div class="bg-gray-900/60 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-                <!-- Header -->
-                <div class="p-8 md:p-10 text-center border-b border-white/5">
-                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-6 shadow-lg shadow-blue-500/30">
-                        <span class="text-3xl">✨</span>
+{% block content %}
+<section class="generator-section">
+    <div class="container-sm">
+        <div class="generator-card">
+            <div class="generator-header">
+                <div class="generator-badge">✨</div>
+                <h1 class="generator-title">Generador de <span class="gradient-text">Rutinas IA</span></h1>
+                <p class="generator-subtitle">
+                    Define tus objetivos y deja que diseñemos el entrenamiento perfecto para ti en segundos.
+                </p>
+            </div>
+
+            <form method="post" class="generator-form">
+                {% csrf_token %}
+
+                <div class="gen-group">
+                    <label class="gen-label"><span class="dot dot-blue"></span> Duración Total</label>
+                    <div class="option-grid cols-4">
+                        {% for value in "15,30,45,60"|make_list %}{% endfor %}
+                        <label class="option-tile">
+                            <input type="radio" name="duration" value="15">
+                            <span class="tile-body"><span class="tile-big">15</span><span class="tile-small">min</span></span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="duration" value="30" checked>
+                            <span class="tile-body"><span class="tile-big">30</span><span class="tile-small">min</span></span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="duration" value="45">
+                            <span class="tile-body"><span class="tile-big">45</span><span class="tile-small">min</span></span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="duration" value="60">
+                            <span class="tile-body"><span class="tile-big">60</span><span class="tile-small">min</span></span>
+                        </label>
                     </div>
-                    <h1 class="text-4xl md:text-5xl font-black text-white mb-4 tracking-tight">
-                        Generador de <span class="gradient-text">Rutinas IA</span>
-                    </h1>
-                    <p class="text-lg text-gray-400 max-w-xl mx-auto leading-relaxed">
-                        Define tus objetivos y deja que nuestra inteligencia artificial diseñe el entrenamiento perfecto para ti en segundos.
-                    </p>
                 </div>
 
-                <form method="post" class="p-8 md:p-10 space-y-10">
-                    {% csrf_token %}
-                    
-                    <!-- Duration Section -->
-                    <div class="space-y-4">
-                        <label class="flex items-center gap-2 text-sm font-bold text-gray-300 uppercase tracking-wider">
-                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                            Duración Total
+                <div class="gen-group">
+                    <label class="gen-label"><span class="dot dot-green"></span> Nivel de Dificultad</label>
+                    <div class="option-grid cols-3">
+                        <label class="option-tile">
+                            <input type="radio" name="difficulty" value="beginner">
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">🌱</span>
+                                <span class="tile-name">Principiante</span>
+                                <span class="tile-desc">Técnica básica</span>
+                            </span>
                         </label>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {% for mins in "15 30 45 60"|make_list %} <!-- Using explicit list logic manually below to be safe, but cleaner -->
-                                <!-- We will use manual rendering for better control -->
-                            {% endfor %}
-                            
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="duration" value="15" class="peer sr-only">
-                                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl opacity-0 peer-checked:opacity-100 transition-opacity duration-300 blur-sm"></div>
-                                <div class="relative h-full flex flex-col items-center justify-center p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:bg-gray-800 peer-checked:border-white/30 transition-all group-hover:bg-gray-800 group-hover:border-white/20">
-                                    <span class="text-2xl font-bold text-white mb-1">15</span>
-                                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">min</span>
-                                </div>
-                            </label>
-
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="duration" value="30" class="peer sr-only" checked>
-                                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl opacity-0 peer-checked:opacity-100 transition-opacity duration-300 blur-sm"></div>
-                                <div class="relative h-full flex flex-col items-center justify-center p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:bg-gray-800 peer-checked:border-white/30 transition-all group-hover:bg-gray-800 group-hover:border-white/20">
-                                    <span class="text-2xl font-bold text-white mb-1">30</span>
-                                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">min</span>
-                                </div>
-                            </label>
-
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="duration" value="45" class="peer sr-only">
-                                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl opacity-0 peer-checked:opacity-100 transition-opacity duration-300 blur-sm"></div>
-                                <div class="relative h-full flex flex-col items-center justify-center p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:bg-gray-800 peer-checked:border-white/30 transition-all group-hover:bg-gray-800 group-hover:border-white/20">
-                                    <span class="text-2xl font-bold text-white mb-1">45</span>
-                                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">min</span>
-                                </div>
-                            </label>
-
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="duration" value="60" class="peer sr-only">
-                                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl opacity-0 peer-checked:opacity-100 transition-opacity duration-300 blur-sm"></div>
-                                <div class="relative h-full flex flex-col items-center justify-center p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:bg-gray-800 peer-checked:border-white/30 transition-all group-hover:bg-gray-800 group-hover:border-white/20">
-                                    <span class="text-2xl font-bold text-white mb-1">60</span>
-                                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">min</span>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Difficulty Section -->
-                    <div class="space-y-4">
-                        <label class="flex items-center gap-2 text-sm font-bold text-gray-300 uppercase tracking-wider">
-                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                            Nivel de Dificultad
+                        <label class="option-tile">
+                            <input type="radio" name="difficulty" value="intermediate" checked>
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">⚡</span>
+                                <span class="tile-name">Intermedio</span>
+                                <span class="tile-desc">Intensidad media</span>
+                            </span>
                         </label>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <!-- Beginner -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="difficulty" value="beginner" class="peer sr-only">
-                                <div class="absolute inset-0 bg-green-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-5 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-green-500/50 transition-all group-hover:border-white/20 flex flex-col items-center gap-3">
-                                    <div class="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-                                        🌱
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="font-bold text-white mb-1">Principiante</div>
-                                        <div class="text-xs text-gray-400">Técnica básica</div>
-                                    </div>
-                                </div>
-                            </label>
-
-                            <!-- Intermediate -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="difficulty" value="intermediate" class="peer sr-only" checked>
-                                <div class="absolute inset-0 bg-yellow-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-5 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-yellow-500/50 transition-all group-hover:border-white/20 flex flex-col items-center gap-3">
-                                    <div class="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-                                        ⚡
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="font-bold text-white mb-1">Intermedio</div>
-                                        <div class="text-xs text-gray-400">Intensidad media</div>
-                                    </div>
-                                </div>
-                            </label>
-
-                            <!-- Advanced -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="difficulty" value="advanced" class="peer sr-only">
-                                <div class="absolute inset-0 bg-red-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-5 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-red-500/50 transition-all group-hover:border-white/20 flex flex-col items-center gap-3">
-                                    <div class="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-                                        🔥
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="font-bold text-white mb-1">Avanzado</div>
-                                        <div class="text-xs text-gray-400">Alta intensidad</div>
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Focus Section (Visual Grid instead of Select) -->
-                    <div class="space-y-4">
-                        <label class="flex items-center gap-2 text-sm font-bold text-gray-300 uppercase tracking-wider">
-                            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                            Enfoque Principal
+                        <label class="option-tile">
+                            <input type="radio" name="difficulty" value="advanced">
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">🔥</span>
+                                <span class="tile-name">Avanzado</span>
+                                <span class="tile-desc">Alta intensidad</span>
+                            </span>
                         </label>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <!-- Mix -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="focus" value="mix" class="peer sr-only" checked>
-                                <div class="absolute inset-0 bg-indigo-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-indigo-500/50 transition-all group-hover:border-white/20 flex flex-col items-center text-center gap-3 h-full">
-                                    <span class="text-2xl group-hover:scale-110 transition-transform">⚖️</span>
-                                    <span class="font-medium text-white text-sm">Balanceado</span>
-                                </div>
-                            </label>
-
-                            <!-- Strength -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="focus" value="strength" class="peer sr-only">
-                                <div class="absolute inset-0 bg-blue-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-blue-500/50 transition-all group-hover:border-white/20 flex flex-col items-center text-center gap-3 h-full">
-                                    <span class="text-2xl group-hover:scale-110 transition-transform">💪</span>
-                                    <span class="font-medium text-white text-sm">Fuerza</span>
-                                </div>
-                            </label>
-
-                            <!-- Cardio -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="focus" value="cardio" class="peer sr-only">
-                                <div class="absolute inset-0 bg-orange-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-orange-500/50 transition-all group-hover:border-white/20 flex flex-col items-center text-center gap-3 h-full">
-                                    <span class="text-2xl group-hover:scale-110 transition-transform">🫀</span>
-                                    <span class="font-medium text-white text-sm">Cardio/HIIT</span>
-                                </div>
-                            </label>
-
-                            <!-- Full Body -->
-                            <label class="group cursor-pointer relative">
-                                <input type="radio" name="focus" value="full_body" class="peer sr-only">
-                                <div class="absolute inset-0 bg-pink-500 rounded-xl opacity-0 peer-checked:opacity-20 transition-opacity duration-300"></div>
-                                <div class="relative p-4 bg-gray-800/80 border border-white/10 rounded-xl peer-checked:border-pink-500/50 transition-all group-hover:border-white/20 flex flex-col items-center text-center gap-3 h-full">
-                                    <span class="text-2xl group-hover:scale-110 transition-transform">🎯</span>
-                                    <span class="font-medium text-white text-sm">Full Body</span>
-                                </div>
-                            </label>
-                        </div>
                     </div>
+                </div>
 
-                    <!-- Submit Button -->
-                    <div class="pt-6">
-                        <button type="submit" class="group w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-[2px] focus:outline-none focus:ring-4 focus:ring-blue-500/30">
-                            <span class="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></span>
-                            <div class="relative flex items-center justify-center gap-3 rounded-2xl bg-gray-900/50 px-8 py-5 transition-all duration-300 group-hover:bg-transparent">
-                                <span class="text-2xl transition-transform group-hover:rotate-12">✨</span>
-                                <span class="text-lg font-bold text-white tracking-wide">Generar Mi Rutina Personalizada</span>
-                            </div>
-                        </button>
+                <div class="gen-group">
+                    <label class="gen-label"><span class="dot dot-purple"></span> Enfoque Principal</label>
+                    <div class="option-grid cols-4">
+                        <label class="option-tile">
+                            <input type="radio" name="focus" value="mix" checked>
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">⚖️</span>
+                                <span class="tile-name">Balanceado</span>
+                            </span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="focus" value="strength">
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">💪</span>
+                                <span class="tile-name">Fuerza</span>
+                            </span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="focus" value="cardio">
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">🫀</span>
+                                <span class="tile-name">Cardio/HIIT</span>
+                            </span>
+                        </label>
+                        <label class="option-tile">
+                            <input type="radio" name="focus" value="full_body">
+                            <span class="tile-body tile-tall">
+                                <span class="tile-emoji">🎯</span>
+                                <span class="tile-name">Full Body</span>
+                            </span>
+                        </label>
                     </div>
-                </form>
-            </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg generator-submit">
+                    ✨ Generar Mi Rutina Personalizada
+                </button>
+            </form>
         </div>
     </div>
-</div>
+</section>
+
+<style>
+.generator-section { padding: var(--spacing-2xl) 0; }
+.container-sm { max-width: 780px; margin: 0 auto; padding: 0 var(--spacing-md); }
+
+.generator-card {
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+}
+
+.generator-header {
+    text-align: center;
+    padding: var(--spacing-2xl) var(--spacing-xl) var(--spacing-xl);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.generator-badge {
+    width: 64px; height: 64px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.8rem;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    margin-bottom: var(--spacing-md);
+}
+
+.generator-title { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 800; margin-bottom: var(--spacing-sm); }
+.generator-subtitle { color: var(--text-muted); max-width: 34rem; margin: 0 auto; line-height: 1.6; }
+
+.generator-form { padding: var(--spacing-xl); display: flex; flex-direction: column; gap: var(--spacing-2xl); }
+
+.gen-label {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.78rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-blue { background: #3b82f6; }
+.dot-green { background: #22c55e; }
+.dot-purple { background: #a855f7; }
+
+.option-grid { display: grid; gap: var(--spacing-md); }
+.option-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.option-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.option-tile { position: relative; cursor: pointer; display: block; }
+.option-tile input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.tile-body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    text-align: center;
+}
+.tile-tall { gap: 0.5rem; min-height: 120px; }
+
+.option-tile:hover .tile-body { border-color: rgba(255, 255, 255, 0.25); transform: translateY(-2px); }
+.option-tile input:checked + .tile-body {
+    border-color: var(--primary-color);
+    background: rgba(99, 102, 241, 0.12);
+    box-shadow: 0 0 0 1px var(--primary-color) inset;
+}
+.option-tile input:focus-visible + .tile-body { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+
+.tile-big { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); }
+.tile-small { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.tile-emoji { font-size: 1.6rem; }
+.tile-name { font-weight: 700; color: var(--text-primary); font-size: 0.95rem; }
+.tile-desc { font-size: 0.75rem; color: var(--text-muted); }
+
+.generator-submit { width: 100%; justify-content: center; }
+
+@media (max-width: 640px) {
+    .option-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+    .option-grid.cols-3 { grid-template-columns: 1fr; }
+}
+</style>
 {% endblock %}

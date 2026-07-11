@@ -1,13 +1,27 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth import login, logout, authenticate
+import json
+import logging
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
+
+from django.contrib import messages
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, Http404
+from django.core.paginator import Paginator
+from django.db.models import Avg, Count, Q, Sum
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
-from django.db.models import Count
+
+from .forms import (
+    CustomAuthenticationForm,
+    CustomUserCreationForm,
+    WorkoutExerciseFormSet,
+    WorkoutForm,
+)
 from .models import Exercise, Favorite, Workout, WorkoutLog
 from .utils import RoutineGenerator
-from .forms import CustomUserCreationForm, CustomAuthenticationForm
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +44,19 @@ def get_favorites_ids(request):
         return list(request.user.favorites.values_list('exercise_id', flat=True))
     return []
 
+
+def parse_json_body(request):
+    """Devuelve el body como dict, o None si no es JSON válido."""
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('exercises:landing')
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
@@ -42,18 +68,24 @@ def register_view(request):
     return render(request, 'registration/register.html', {'form': form})
 
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('exercises:landing')
     if request.method == 'POST':
         form = CustomAuthenticationForm(data=request.POST)
         if form.is_valid():
             user = form.get_user()
             login(request, user)
-            if 'next' in request.POST:
-                return redirect(request.POST.get('next'))
+            next_url = request.POST.get('next')
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
+                return redirect(next_url)
             return redirect('exercises:landing')
     else:
         form = CustomAuthenticationForm()
     return render(request, 'registration/login.html', {'form': form})
 
+@require_POST
 def logout_view(request):
     logout(request)
     return redirect('exercises:landing')
@@ -61,20 +93,19 @@ def logout_view(request):
 @login_required
 @require_POST
 def toggle_favorite(request):
-    import json
-    data = json.loads(request.body)
-    exercise_id = data.get('exercise_id')
+    data = parse_json_body(request)
+    try:
+        exercise_id = int((data or {}).get('exercise_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Petición inválida'}, status=400)
+
     exercise = get_object_or_404(Exercise, id=exercise_id)
-    
     favorite, created = Favorite.objects.get_or_create(user=request.user, exercise=exercise)
-    
+
     if not created:
         favorite.delete()
-        is_paved = False
-    else:
-        is_paved = True
-        
-    return JsonResponse({'status': 'success', 'is_favorite': is_paved})
+
+    return JsonResponse({'status': 'success', 'is_favorite': created})
 
 @login_required
 def favorites_list(request):
@@ -82,38 +113,75 @@ def favorites_list(request):
     exercises = [f.exercise for f in favorites]
     return render(request, 'exercises/favorites.html', {'exercises': exercises})
 
-def landing_page(request):
-    exercises = Exercise.objects.all()
-    video_exercises = exercises.exclude(video_url__isnull=True).exclude(video_url__exact="")[:6]
-    
-    favorites_ids = get_favorites_ids(request)
+FEATURED_EXERCISES_LIMIT = 8
+LANDING_VIDEOS_LIMIT = 3
 
-    # Organize exercises by category
-    exercises_by_category = {
-        'strength': exercises.filter(category='strength'),
-        'cardio': exercises.filter(category='cardio'),
-        'flexibility': exercises.filter(category='flexibility'),
-        'full_body': exercises.filter(category='full_body'),
-    }
-    
+
+def landing_page(request):
+    total_exercises = Exercise.objects.count()
+
+    # Preview ligero: solo unos pocos destacados en lugar de toda la biblioteca.
+    # Priorizamos los que tienen vídeo (más visuales) y rellenamos con el resto.
+    featured_exercises = list(
+        Exercise.objects.exclude(video_url='').order_by('-updated_at')[:FEATURED_EXERCISES_LIMIT]
+    )
+    if len(featured_exercises) < FEATURED_EXERCISES_LIMIT:
+        already = [ex.id for ex in featured_exercises]
+        featured_exercises += list(
+            Exercise.objects.exclude(id__in=already)
+            .order_by('-updated_at')[:FEATURED_EXERCISES_LIMIT - len(featured_exercises)]
+        )
+
+    video_exercises = [ex for ex in featured_exercises if ex.video_url][:LANDING_VIDEOS_LIMIT]
+
     context = {
-        'exercises_by_category': exercises_by_category,
-        'all_exercises': exercises,
-        'favorites_ids': favorites_ids,
+        'featured_exercises': featured_exercises,
+        'total_exercises': total_exercises,
+        'favorites_ids': get_favorites_ids(request),
         'video_exercises': video_exercises,
     }
-    
+
     return render(request, 'exercises/landing.html', context)
 
+EXERCISES_PER_PAGE = 12
+
+
+def paginate_exercises(request, queryset):
+    paginator = Paginator(queryset, EXERCISES_PER_PAGE)
+    return paginator.get_page(request.GET.get('page'))
+
+
 def exercise_list(request):
+    search_query = request.GET.get('q', '').strip()
     exercises = Exercise.objects.all()
+
+    if search_query:
+        exercises = exercises.filter(
+            Q(name__icontains=search_query)
+            | Q(description__icontains=search_query)
+            | Q(muscles_targeted__icontains=search_query)
+            | Q(equipment__icontains=search_query)
+        )
+
+    page_obj = paginate_exercises(request, exercises)
+
+    if search_query:
+        subtitle = f'Resultados para "{search_query}".'
+        empty_message = f'No hay ejercicios que coincidan con "{search_query}".'
+    else:
+        subtitle = 'Biblioteca completa de ejercicios con kettlebell.'
+        empty_message = 'No hay ejercicios disponibles todavia.'
+
     context = {
-        'exercises': exercises,
+        'exercises': page_obj.object_list,
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'show_search': True,
         'favorites_ids': get_favorites_ids(request),
         'page_title': 'Todos los ejercicios',
-        'page_subtitle': 'Biblioteca completa de ejercicios con kettlebell.',
+        'page_subtitle': subtitle,
         'page_kicker': 'Ejercicios',
-        'empty_message': 'No hay ejercicios disponibles todavia.',
+        'empty_message': empty_message,
     }
     return render(request, 'exercises/exercise_collection.html', context)
 
@@ -144,9 +212,10 @@ def category_detail(request, category):
     if category not in category_labels:
         raise Http404("Categoria no encontrada")
 
-    exercises = Exercise.objects.filter(category=category)
+    page_obj = paginate_exercises(request, Exercise.objects.filter(category=category))
     context = {
-        'exercises': exercises,
+        'exercises': page_obj.object_list,
+        'page_obj': page_obj,
         'favorites_ids': get_favorites_ids(request),
         'page_title': category_labels[category],
         'page_subtitle': 'Ejercicios filtrados por categoria.',
@@ -182,9 +251,10 @@ def difficulty_detail(request, difficulty):
     if difficulty not in difficulty_labels:
         raise Http404("Nivel no encontrado")
 
-    exercises = Exercise.objects.filter(difficulty=difficulty)
+    page_obj = paginate_exercises(request, Exercise.objects.filter(difficulty=difficulty))
     context = {
-        'exercises': exercises,
+        'exercises': page_obj.object_list,
+        'page_obj': page_obj,
         'favorites_ids': get_favorites_ids(request),
         'page_title': difficulty_labels[difficulty],
         'page_subtitle': 'Ejercicios filtrados por nivel.',
@@ -252,21 +322,32 @@ def exercise_detail(request, slug):
     }
     return render(request, 'exercises/detail.html', context)
 
+def get_visible_workouts(user):
+    """Workouts públicos más los privados del usuario autenticado."""
+    if user.is_authenticated:
+        return Workout.objects.filter(Q(is_public=True) | Q(created_by=user))
+    return Workout.objects.filter(is_public=True)
+
+
+def get_visible_workout_or_404(user, slug):
+    return get_object_or_404(get_visible_workouts(user), slug=slug)
+
+
 def workout_list(request):
-    workouts = Workout.objects.filter(is_public=True)
-    if request.user.is_authenticated:
-        # We can add private workouts here later
-        pass
-    
+    workouts = (
+        get_visible_workouts(request.user)
+        .annotate(num_exercises=Count('exercises'))
+        .order_by('-created_at')
+    )
     context = {
         'workouts': workouts
     }
     return render(request, 'exercises/workout_list.html', context)
 
 def workout_detail(request, slug):
-    workout = get_object_or_404(Workout, slug=slug)
+    workout = get_visible_workout_or_404(request.user, slug)
     workout_exercises = workout.exercises.select_related('exercise').all()
-    
+
     context = {
         'workout': workout,
         'workout_exercises': workout_exercises
@@ -275,7 +356,7 @@ def workout_detail(request, slug):
 
 @login_required
 def workout_session(request, slug):
-    workout = get_object_or_404(Workout, slug=slug)
+    workout = get_visible_workout_or_404(request.user, slug)
     # Get all exercises ordered
     workout_exercises = workout.exercises.select_related('exercise').all().order_by('order')
     
@@ -285,73 +366,203 @@ def workout_session(request, slug):
     }
     return render(request, 'exercises/session_player.html', context)
 
+WEEKLY_CHART_WEEKS = 8
+
+
+def compute_streak_days(log_dates, today):
+    """Días consecutivos con al menos una sesión, terminando hoy o ayer."""
+    dates = set(log_dates)
+    current = today if today in dates else today - timedelta(days=1)
+    streak = 0
+    while current in dates:
+        streak += 1
+        current -= timedelta(days=1)
+    return streak
+
+
+def build_weekly_chart(log_dates, today):
+    """Sesiones por semana (lunes a domingo) de las últimas WEEKLY_CHART_WEEKS."""
+    this_monday = today - timedelta(days=today.weekday())
+    weeks = []
+    for offset in range(WEEKLY_CHART_WEEKS - 1, -1, -1):
+        start = this_monday - timedelta(weeks=offset)
+        end = start + timedelta(days=7)
+        count = sum(1 for d in log_dates if start <= d < end)
+        weeks.append({'label': start.strftime('%d/%m'), 'count': count})
+    max_count = max((week['count'] for week in weeks), default=0)
+    for week in weeks:
+        week['pct'] = round(week['count'] * 100 / max_count) if max_count else 0
+    return weeks
+
+
 @login_required
 def dashboard(request):
-    recent_logs = WorkoutLog.objects.filter(user=request.user).select_related('workout')[:5]
+    logs = WorkoutLog.objects.filter(user=request.user)
+    recent_logs = logs.select_related('workout')[:5]
     favorites = Favorite.objects.filter(user=request.user).select_related('exercise')
     favorite_exercises = [f.exercise for f in favorites]
-    
-    total_workouts = WorkoutLog.objects.filter(user=request.user).count()
-    
+    my_workouts = Workout.objects.filter(created_by=request.user).order_by('-created_at')
+
+    today = timezone.localdate()
+    log_dates = [timezone.localtime(dt).date() for dt in logs.values_list('completed_at', flat=True)]
+    week_ago = today - timedelta(days=6)
+
+    stats = logs.aggregate(total_minutes=Sum('duration_minutes'), avg_rpe=Avg('rpe'))
+
     context = {
         'recent_logs': recent_logs,
         'favorite_exercises': favorite_exercises,
-        'total_workouts': total_workouts,
+        'total_workouts': len(log_dates),
+        'my_workouts': my_workouts,
+        'sessions_this_week': sum(1 for d in log_dates if d >= week_ago),
+        'streak_days': compute_streak_days(log_dates, today),
+        'total_minutes': stats['total_minutes'] or 0,
+        'avg_rpe': round(stats['avg_rpe'], 1) if stats['avg_rpe'] is not None else None,
+        'weekly_chart': build_weekly_chart(log_dates, today),
     }
     return render(request, 'exercises/dashboard.html', context)
+
+def _optional_int(data, key, minimum, maximum):
+    """Entero opcional del payload: (ok, valor). None/ausente es válido."""
+    raw = data.get(key)
+    if raw is None:
+        return True, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return False, None
+    if not minimum <= value <= maximum:
+        return False, None
+    return True, value
+
 
 @login_required
 @require_POST
 def log_workout(request):
-    import json
-    data = json.loads(request.body)
-    workout_id = data.get('workout_id')
-    workout = get_object_or_404(Workout, id=workout_id)
-    
-    WorkoutLog.objects.create(user=request.user, workout=workout)
-    
+    data = parse_json_body(request)
+    try:
+        workout_id = int((data or {}).get('workout_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Petición inválida'}, status=400)
+
+    duration_ok, duration = _optional_int(data, 'duration_minutes', 1, 600)
+    rpe_ok, rpe = _optional_int(data, 'rpe', 1, 10)
+
+    weight = data.get('kettlebell_weight')
+    weight_ok = True
+    if weight is not None:
+        try:
+            weight = Decimal(str(weight))
+            weight_ok = Decimal('1') <= weight <= Decimal('200')
+        except InvalidOperation:
+            weight_ok = False
+
+    notes = data.get('notes') or ''
+    notes_ok = isinstance(notes, str) and len(notes) <= 300
+
+    if not (duration_ok and rpe_ok and weight_ok and notes_ok):
+        return JsonResponse({'status': 'error', 'message': 'Métricas inválidas'}, status=400)
+
+    workout = get_object_or_404(get_visible_workouts(request.user), id=workout_id)
+    WorkoutLog.objects.create(
+        user=request.user,
+        workout=workout,
+        duration_minutes=duration,
+        kettlebell_weight=weight,
+        rpe=rpe,
+        notes=notes.strip(),
+    )
+
     return JsonResponse({'status': 'success'})
 
 @login_required
 def create_workout(request):
-    from .forms import WorkoutForm, WorkoutExerciseFormSet
-    
     if request.method == 'POST':
         form = WorkoutForm(request.POST)
         formset = WorkoutExerciseFormSet(request.POST)
-        
+
         if form.is_valid() and formset.is_valid():
             workout = form.save(commit=False)
-            # If standard user, maybe force is_public=False or similar? 
-            # For now let them choose.
+            workout.created_by = request.user
             workout.save()
             
             instances = formset.save(commit=False)
             for instance in instances:
                 instance.workout = workout
                 instance.save()
-            
-            # Save deletions if any
-            for obj in formset.deleted_objects:
-                obj.delete()
-                
+
+            messages.success(request, 'Rutina creada correctamente.')
             return redirect('exercises:workout_detail', slug=workout.slug)
     else:
         form = WorkoutForm()
         formset = WorkoutExerciseFormSet()
-        
+
     return render(request, 'exercises/workout_form.html', {
         'form': form,
-        'formset': formset
+        'formset': formset,
+        'page_heading': 'Crear Nueva Rutina',
+        'page_subtitle': 'Diseña tu entrenamiento personalizado.',
     })
+
+
+@login_required
+def edit_workout(request, slug):
+    workout = get_object_or_404(Workout, slug=slug, created_by=request.user)
+
+    if request.method == 'POST':
+        form = WorkoutForm(request.POST, instance=workout)
+        formset = WorkoutExerciseFormSet(request.POST, instance=workout)
+
+        if form.is_valid() and formset.is_valid():
+            form.save()
+            formset.save()
+            messages.success(request, 'Rutina actualizada correctamente.')
+            return redirect('exercises:workout_detail', slug=workout.slug)
+    else:
+        form = WorkoutForm(instance=workout)
+        formset = WorkoutExerciseFormSet(instance=workout)
+
+    return render(request, 'exercises/workout_form.html', {
+        'form': form,
+        'formset': formset,
+        'workout': workout,
+        'page_heading': 'Editar Rutina',
+        'page_subtitle': f'Modifica los datos de "{workout.title}".',
+    })
+
+
+@login_required
+@require_POST
+def delete_workout(request, slug):
+    workout = get_object_or_404(Workout, slug=slug, created_by=request.user)
+    title = workout.title
+    workout.delete()
+    messages.success(request, f'Rutina "{title}" eliminada.')
+    return redirect('exercises:workout_list')
+
+VALID_FOCUS_OPTIONS = {'strength', 'cardio', 'flexibility', 'full_body', 'mix'}
+VALID_DIFFICULTY_OPTIONS = {value for value, _ in Exercise.DIFFICULTY_CHOICES}
+
 
 @login_required
 def generate_routine_view(request):
     if request.method == 'POST':
-        duration = request.POST.get('duration', 30)
         difficulty = request.POST.get('difficulty', 'intermediate')
         focus = request.POST.get('focus', 'mix')
-        
+
+        try:
+            duration = int(request.POST.get('duration', 30))
+        except (TypeError, ValueError):
+            duration = 0
+
+        if (
+            not 10 <= duration <= 120
+            or difficulty not in VALID_DIFFICULTY_OPTIONS
+            or focus not in VALID_FOCUS_OPTIONS
+        ):
+            messages.error(request, 'Los datos del formulario no son válidos. Revisa la duración, el nivel y el enfoque.')
+            return render(request, 'exercises/generate_routine.html')
+
         try:
             generator = RoutineGenerator(
                 user=request.user,
@@ -361,10 +572,8 @@ def generate_routine_view(request):
             )
             workout = generator.generate()
             return redirect('exercises:workout_detail', slug=workout.slug)
-            
-        except Exception as e:
-            # Add error handling appropriately
-            logger.error(f"Error generating routine: {e}")
-            # fall through to render page again with error?
-            
+        except Exception:
+            logger.exception("Error generando la rutina")
+            messages.error(request, 'No se pudo generar la rutina. Inténtalo de nuevo.')
+
     return render(request, 'exercises/generate_routine.html')

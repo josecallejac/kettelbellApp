@@ -10,7 +10,7 @@
             <h1 class="gradient-text">Entrenamientos</h1>
             <p class="section-subtitle">Rutinas diseñadas para todos los niveles.</p>
             {% if user.is_authenticated %}
-            <a href="{% url 'exercises:workout_create' %}" class="btn btn-primary mt-4" style="margin-top: 1rem; display: inline-block;">+ Crear Nueva Rutina</a>
+            <a href="{% url 'exercises:workout_create' %}" class="btn btn-primary" style="margin-top: 1rem; display: inline-block;">+ Crear Nueva Rutina</a>
             {% endif %}
         </header>
         
@@ -42,7 +42,7 @@
                         </span>
                         <span class="meta-item">
                             <span class="icon">🏋️</span> 
-                            {{ workout.exercises.count }} Ejercicios
+                            {{ workout.num_exercises }} Ejercicios
                         </span>
                     </div>
                     

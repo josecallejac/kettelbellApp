@@ -16,6 +16,14 @@ COPY . .
 
 RUN chmod +x /app/docker/entrypoint.sh
 
+# Usuario sin privilegios; staticfiles se pre-crea con su owner para que el
+# volumen nombrado herede los permisos y collectstatic pueda escribir.
+RUN useradd --create-home appuser \
+    && mkdir -p /app/staticfiles \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 8000
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
