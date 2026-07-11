@@ -15,16 +15,18 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kettelbell.settings')
 django.setup()
 
 from django.conf import settings
-from exercises.models import Exercise
 from django.utils.text import slugify
+
+from exercises.models import Exercise
+
+CATALOG_IMAGES_DIR = Path(settings.BASE_DIR) / 'exercises/static/exercises/img/catalog'
 
 
 def catalog_image_for(name):
-    """Ruta relativa de la imagen del catalogo si existe en media/, o ''."""
-    base = name.lower().replace(':', '').replace(',', '').replace(' ', '_')
-    relative = f'exercises/{base}.jpg'
-    if (Path(settings.MEDIA_ROOT) / relative).exists():
-        return relative
+    """Nombre de archivo de la imagen del catalogo si existe en static, o ''."""
+    filename = name.lower().replace(':', '').replace(',', '').replace(' ', '_') + '.jpg'
+    if (CATALOG_IMAGES_DIR / filename).exists():
+        return filename
     return ''
 
 def clear_exercises():

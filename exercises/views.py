@@ -82,6 +82,7 @@ def login_view(request):
         form = CustomAuthenticationForm()
     return render(request, 'registration/login.html', {'form': form})
 
+@require_POST
 def logout_view(request):
     logout(request)
     return redirect('exercises:landing')
@@ -408,10 +409,6 @@ def create_workout(request):
             for instance in instances:
                 instance.workout = workout
                 instance.save()
-            
-            # Save deletions if any
-            for obj in formset.deleted_objects:
-                obj.delete()
 
             messages.success(request, 'Rutina creada correctamente.')
             return redirect('exercises:workout_detail', slug=workout.slug)

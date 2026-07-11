@@ -77,6 +77,13 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(response.wsgi_request.user.is_authenticated)
 
+    def test_logout_rejects_get(self):
+        User.objects.create_user(username='testuser', password='password123')
+        self.client.login(username='testuser', password='password123')
+        response = self.client.get(self.logout_url)
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
 
 class ExerciseModelTests(TestCase):
     def test_duplicate_names_get_unique_slugs(self):
@@ -88,6 +95,19 @@ class ExerciseModelTests(TestCase):
         )
         self.assertNotEqual(first.slug, second.slug)
         self.assertTrue(second.slug.startswith(first.slug))
+
+    def test_image_url_resolves_catalog_static_path(self):
+        exercise = Exercise.objects.create(
+            name='Con imagen', description='x', category='strength', difficulty='beginner',
+            image='kettlebell_swing.jpg',
+        )
+        self.assertEqual(exercise.image_url, '/static/exercises/img/catalog/kettlebell_swing.jpg')
+
+    def test_image_url_empty_when_no_image(self):
+        exercise = Exercise.objects.create(
+            name='Sin imagen', description='x', category='strength', difficulty='beginner'
+        )
+        self.assertEqual(exercise.image_url, '')
 
 
 class FavoriteTests(TestCase):

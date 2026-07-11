@@ -1,7 +1,8 @@
+from django.contrib.auth.models import User
 from django.db import models
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.text import slugify
-from django.contrib.auth.models import User
 
 
 def build_unique_slug(instance, source_text):
@@ -21,7 +22,9 @@ class Favorite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'exercise')
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'exercise'], name='unique_user_exercise_favorite'),
+        ]
         verbose_name = 'Favorito'
         verbose_name_plural = 'Favoritos'
 
@@ -53,15 +56,23 @@ class Exercise(models.Model):
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,
+        db_index=True,
         verbose_name='Categoría'
     )
     difficulty = models.CharField(
         max_length=20,
         choices=DIFFICULTY_CHOICES,
+        db_index=True,
         verbose_name='Dificultad'
     )
     benefits = models.TextField(verbose_name='Beneficios', blank=True)
-    image = models.ImageField(upload_to='exercises/', blank=True, null=True, verbose_name='Imagen')
+    image = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Imagen',
+        help_text='Nombre de archivo dentro de exercises/static/exercises/img/catalog/ (ej: kettlebell_swing.jpg)'
+    )
     video_url = models.URLField(
         verbose_name='URL del video',
         blank=True,
@@ -133,6 +144,18 @@ class Exercise(models.Model):
     
     def get_absolute_url(self):
         return reverse('exercises:detail', kwargs={'slug': self.slug})
+
+    @property
+    def image_url(self):
+        """URL estática de la imagen del catálogo, o '' si no tiene o no existe."""
+        if not self.image:
+            return ''
+        try:
+            return static(f'exercises/img/catalog/{self.image}')
+        except ValueError:
+            # Con ManifestStaticFilesStorage un archivo inexistente lanza
+            # ValueError; mejor no mostrar imagen que romper la página.
+            return ''
 
 class Workout(models.Model):
     DIFFICULTY_CHOICES = [

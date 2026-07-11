@@ -25,7 +25,7 @@
             <div class="exercise-step" id="step-{{ forloop.counter0 }}" {% if not forloop.first %}style="display: none;"{% endif %}>
                 <div class="step-image-container">
                     {% if item.exercise.image %}
-                    <img src="{{ item.exercise.image.url }}" alt="{{ item.exercise.name }}" class="step-image">
+                    <img src="{{ item.exercise.image_url }}" alt="{{ item.exercise.name }}" class="step-image">
                     {% else %}
                     <div class="step-placeholder">
                         <span>🏋️</span>

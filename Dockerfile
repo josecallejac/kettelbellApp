@@ -14,11 +14,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Copia de las imagenes del catalogo fuera de /app/media: el volumen de media
-# monta encima de /app/media y ocultaria las que vienen en la imagen.
-RUN cp -r /app/media /app/media_seed
-
 RUN chmod +x /app/docker/entrypoint.sh
+
+# Usuario sin privilegios; staticfiles se pre-crea con su owner para que el
+# volumen nombrado herede los permisos y collectstatic pueda escribir.
+RUN useradd --create-home appuser \
+    && mkdir -p /app/staticfiles \
+    && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

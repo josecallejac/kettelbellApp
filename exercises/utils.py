@@ -1,5 +1,5 @@
-import random
 from .models import Exercise, Workout, WorkoutExercise
+
 
 class RoutineGenerator:
     """

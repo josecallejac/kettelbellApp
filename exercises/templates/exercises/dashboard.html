@@ -100,7 +100,7 @@
                     <a href="{% url 'exercises:detail' exercise.slug %}" class="favorite-mini-card">
                         <div class="mini-thumb">
                             {% if exercise.image %}
-                            <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}">
+                            <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}">
                             {% else %}
                             <span>✨</span>
                             {% endif %}

@@ -20,7 +20,7 @@
         <div class="movement-hero-card">
           <div class="detail-image-wrapper coach-image-wrapper">
             {% if exercise.image %}
-            <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="detail-image" />
+            <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="detail-image" />
             {% else %}
             <div class="technique-illustration category-{{ exercise.category }}">
               <div class="floor-line"></div>

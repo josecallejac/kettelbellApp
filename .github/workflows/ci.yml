@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tests (SQLite)
+        run: python manage.py test exercises
+
+      - name: Chequeo de despliegue
+        env:
+          DJANGO_DEBUG: 'False'
+          DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+        run: python manage.py check --deploy

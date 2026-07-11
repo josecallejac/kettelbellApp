@@ -93,7 +93,7 @@
             <div class="exercise-card">
                 <div class="card-image-wrapper">
                     {% if exercise.image %}
-                    <img src="{{ exercise.image.url }}" alt="{{ exercise.name }}" class="card-image" loading="lazy">
+                    <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="card-image" loading="lazy">
                     {% else %}
                     <div class="card-image-placeholder">
                         <span class="placeholder-icon">🏋️</span>

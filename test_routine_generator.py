@@ -1,12 +1,14 @@
 import os
+
 import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kettelbell.settings')
 django.setup()
 
 from django.contrib.auth.models import User
-from exercises.models import Exercise, Workout
+
 from exercises.utils import RoutineGenerator
+
 
 def test_generation():
     print("Testing Routine Generator...")

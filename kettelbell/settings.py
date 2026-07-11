@@ -6,6 +6,8 @@ import os
 from importlib.util import find_spec
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 HAS_WHITENOISE = find_spec('whitenoise') is not None
@@ -14,6 +16,9 @@ HAS_WHITENOISE = find_spec('whitenoise') is not None
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
+
 # SECURITY WARNING: keep the secret key used in production secret!
 # La clave se toma SIEMPRE del entorno (DJANGO_SECRET_KEY). Si no existe, se
 # genera una efimera solo para desarrollo. Define DJANGO_SECRET_KEY en tu .env
@@ -21,11 +26,14 @@ HAS_WHITENOISE = find_spec('whitenoise') is not None
 # entre reinicios.
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
+    if not DEBUG:
+        # Con varios workers (gunicorn) cada proceso generaria una clave
+        # distinta y las sesiones/CSRF fallarian de forma aleatoria.
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY es obligatoria cuando DJANGO_DEBUG=False.'
+        )
     from django.core.management.utils import get_random_secret_key
     SECRET_KEY = get_random_secret_key()
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -139,9 +147,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
@@ -163,10 +171,6 @@ if HAS_WHITENOISE:
             'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
         },
     }
-
-# Media files (uploads)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
