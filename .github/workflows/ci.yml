@@ -22,7 +22,13 @@ jobs:
         run: ruff check .
 
       - name: Tests (SQLite)
-        run: python manage.py test exercises
+        run: python manage.py test exercises --verbosity 0
+
+      - name: Colectar estáticos para chequeo de despliegue
+        env:
+          DJANGO_DEBUG: 'False'
+          DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+        run: python manage.py collectstatic --noinput
 
       - name: Chequeo de despliegue
         env:
