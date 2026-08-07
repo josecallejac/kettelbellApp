@@ -4,11 +4,11 @@ services:
     build: .
     command: gunicorn kettelbell.wsgi:application --bind 0.0.0.0:8000 --workers 3
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?define DJANGO_SECRET_KEY en tu .env}
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web,192.168.100.2
       POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
       POSTGRES_USER: ${POSTGRES_USER:-kettlebell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en tu .env}
