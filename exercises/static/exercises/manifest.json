@@ -1,0 +1,31 @@
+{
+  "name": "KettleBell Pro",
+  "short_name": "KB Pro",
+  "description": "Entrena con kettlebell: ejercicios, rutinas IA y seguimiento de sesiones",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "categories": ["health", "fitness", "sports"],
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/static/exercises/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/exercises/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/exercises/img/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -68,11 +68,11 @@
         {% if page_obj.has_other_pages %}
         <nav class="pagination" aria-label="Paginacion">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}" class="page-link">&larr; Anterior</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}{% if active_category %}&amp;category={{ active_category }}{% endif %}{% if active_difficulty %}&amp;difficulty={{ active_difficulty }}{% endif %}{% if active_muscle %}&amp;muscle={{ active_muscle|urlencode }}{% endif %}" class="page-link">&larr; Anterior</a>
             {% endif %}
             <span class="page-status">Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}" class="page-link">Siguiente &rarr;</a>
+            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}{% if active_category %}&amp;category={{ active_category }}{% endif %}{% if active_difficulty %}&amp;difficulty={{ active_difficulty }}{% endif %}{% if active_muscle %}&amp;muscle={{ active_muscle|urlencode }}{% endif %}" class="page-link">Siguiente &rarr;</a>
             {% endif %}
         </nav>
         {% endif %}
@@ -86,52 +86,8 @@
     </div>
 </section>
 
-<style>
-    .collection-section { padding: var(--spacing-xl) 0 var(--spacing-2xl); }
-    .collection-header { text-align: center; max-width: 760px; margin: 0 auto var(--spacing-2xl); }
-    .back-link { color: var(--text-secondary); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: var(--spacing-xs); margin-bottom: var(--spacing-md); transition: color var(--transition-base); }
-    .back-link:hover { color: var(--primary-light); }
-    .detail-kicker { color: var(--accent-color); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
-    .favorite-btn { position: absolute; top: 10px; right: 10px; background: rgba(30, 41, 59, 0.6); border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); transition: all 0.3s ease; z-index: 10; }
-    .favorite-btn:hover { background: rgba(30, 41, 59, 0.9); transform: scale(1.1); }
-    .favorite-btn .heart-icon { color: white; font-size: 1.2rem; line-height: 1; transition: color 0.3s ease; }
-    .favorite-btn.active .heart-icon { color: #ef4444; }
-    .search-form { display: flex; gap: var(--spacing-xs); justify-content: center; align-items: center; margin-top: var(--spacing-lg); flex-wrap: wrap; }
-    .search-input { flex: 1; min-width: 240px; max-width: 420px; background: var(--bg-secondary); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-primary); padding: 0.7rem 1rem; border-radius: var(--radius-lg); }
-    .search-input:focus { border-color: var(--primary-color); outline: none; }
-    .search-clear { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }
-    .search-clear:hover { color: var(--primary-light); }
-    .pagination { display: flex; justify-content: center; align-items: center; gap: var(--spacing-lg); margin-top: var(--spacing-2xl); }
-    .page-link { color: var(--primary-light); text-decoration: none; font-weight: 700; padding: 0.5rem 1rem; border-radius: var(--radius-lg); border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.2s; }
-    .page-link:hover { background: var(--bg-secondary); border-color: var(--primary-color); }
-    .page-status { color: var(--text-muted); font-size: 0.9rem; }
-</style>
-
-<script>
-function toggleFavorite(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    const btn = event.currentTarget;
-
-    if (btn.dataset.login) {
-        window.location.href = "{% url 'exercises:login' %}";
-        return;
-    }
-
-    fetch("{% url 'exercises:toggle_favorite' %}", {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify({ exercise_id: btn.dataset.id })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            btn.classList.toggle('active', data.is_favorite);
-        }
-    });
-}
-</script>
+{% block extra_js %}
+<script src="{% static 'exercises/js/favorites.js' %}"></script>
+<script src="{% static 'exercises/js/smart-search.js' %}"></script>
+{% endblock %}
 {% endblock %}

@@ -17,6 +17,8 @@ urlpatterns = [
     path('register/', views.register_view, name='register'),
     path('favorites/', views.favorites_list, name='favorites'),
     path('api/toggle-favorite/', views.toggle_favorite, name='toggle_favorite'),
+    path('api/exercises/autocomplete/', views.exercise_autocomplete, name='exercise_autocomplete'),
+    path('api/exercises/filters/', views.exercise_filters, name='exercise_filters'),
     # Workouts
     path('workouts/', views.workout_list, name='workout_list'),
     path('workouts/create/', views.create_workout, name='workout_create'),
@@ -30,4 +32,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('profile/', views.profile_view, name='profile'),
     path('api/log-workout/', views.log_workout, name='log_workout'),
+    path('api/push-subscription/', views.save_push_subscription, name='push_subscription'),
+    path('api/push-subscription/remove/', views.remove_push_subscription, name='push_subscription_remove'),
+    path('api/workout-export/<slug:slug>/', views.workout_export, name='workout_export'),
 ]

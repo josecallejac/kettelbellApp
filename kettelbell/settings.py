@@ -185,6 +185,14 @@ if HAS_WHITENOISE:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# VAPID keys for Web Push notifications
+VAPID_PUBLIC_KEY = os.getenv(
+    'VAPID_PUBLIC_KEY',
+    'BIqEAu0VJ4UDmzRKPuaC15BthS_FRArnFZ3Ux_jDs8CS_1ScM_8rOP8bRK2puB_Up2HImJpLMMEDACqsupZLBew',
+)
+VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '')
+VAPID_ADMIN_EMAIL = os.getenv('VAPID_ADMIN_EMAIL', 'admin@kettlebellpro.app')
+
 # Autenticación
 LOGIN_URL = 'exercises:login'
 LOGIN_REDIRECT_URL = 'exercises:landing'

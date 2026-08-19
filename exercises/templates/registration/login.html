@@ -3,42 +3,42 @@
 {% block title %}Iniciar Sesión - KettleBell Pro{% endblock %}
 
 {% block content %}
-<section class="auth-section" style="padding: 120px 0; min-height: 80vh; display: flex; align-items: center;">
+<section class="auth-section">
     <div class="container">
-        <div class="auth-card" style="max-width: 450px; margin: 0 auto; background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px;">
-            <div class="auth-header" style="text-align: center; margin-bottom: 30px;">
-                <h1 style="font-size: 2rem; font-weight: 800; color: white; margin-bottom: 10px;">Bienvenido de nuevo</h1>
-                <p style="color: #94a3b8;">Ingresa tus credenciales para continuar</p>
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Bienvenido de nuevo</h1>
+                <p>Ingresa tus credenciales para continuar</p>
             </div>
-            
+
             <form method="post" action="{% url 'exercises:login' %}">
                 {% csrf_token %}
-                
+
                 {% if form.errors %}
-                <div class="error-alert" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                <div class="error-alert">
                     <p style="margin: 0;">Usuario o contraseña incorrectos.</p>
                 </div>
                 {% endif %}
 
                 <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="{{ form.username.id_for_label }}" style="display: block; color: #cbd5e1; margin-bottom: 8px; font-weight: 500;">Usuario</label>
+                    <label for="{{ form.username.id_for_label }}">Usuario</label>
                     {{ form.username }}
                 </div>
 
                 <div class="form-group" style="margin-bottom: 30px;">
-                    <label for="{{ form.password.id_for_label }}" style="display: block; color: #cbd5e1; margin-bottom: 8px; font-weight: 500;">Contraseña</label>
+                    <label for="{{ form.password.id_for_label }}">Contraseña</label>
                     {{ form.password }}
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
+                <button type="submit" class="btn btn-primary btn-full">
                     Iniciar Sesión
                 </button>
             </form>
 
-            <div class="auth-footer" style="text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-                <p style="color: #94a3b8;">
-                    ¿No tienes una cuenta? 
-                    <a href="{% url 'exercises:register' %}" style="color: #60a5fa; text-decoration: none; font-weight: 600;">Regístrate aquí</a>
+            <div class="auth-footer">
+                <p>
+                    ¿No tienes una cuenta?
+                    <a href="{% url 'exercises:register' %}">Regístrate aquí</a>
                 </p>
             </div>
         </div>

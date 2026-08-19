@@ -3,6 +3,7 @@ import logging
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -21,7 +22,7 @@ from .forms import (
     WorkoutExerciseFormSet,
     WorkoutForm,
 )
-from .models import Exercise, Favorite, UserProfile, Workout, WorkoutLog
+from .models import Exercise, Favorite, PushSubscription, UserProfile, Workout, WorkoutLog
 from .utils import RoutineGenerator
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,10 @@ def paginate_exercises(request, queryset):
 
 def exercise_list(request):
     search_query = request.GET.get('q', '').strip()
+    category = request.GET.get('category', '').strip()
+    difficulty = request.GET.get('difficulty', '').strip()
+    muscle = request.GET.get('muscle', '').strip()
+
     exercises = Exercise.objects.all()
 
     if search_query:
@@ -164,9 +169,31 @@ def exercise_list(request):
             | Q(equipment__icontains=search_query)
         )
 
+    if category and category in dict(Exercise.CATEGORY_CHOICES):
+        exercises = exercises.filter(category=category)
+
+    if difficulty and difficulty in dict(Exercise.DIFFICULTY_CHOICES):
+        exercises = exercises.filter(difficulty=difficulty)
+
+    if muscle:
+        exercises = exercises.filter(muscles_targeted__icontains=muscle)
+
     page_obj = paginate_exercises(request, exercises)
 
+    active_filters = []
     if search_query:
+        active_filters.append(f'"{search_query}"')
+    if category:
+        active_filters.append(dict(Exercise.CATEGORY_CHOICES).get(category, category))
+    if difficulty:
+        active_filters.append(dict(Exercise.DIFFICULTY_CHOICES).get(difficulty, difficulty))
+    if muscle:
+        active_filters.append(f'músculo: {muscle}')
+
+    if active_filters:
+        subtitle = 'Filtrado por ' + ', '.join(active_filters) + '.'
+        empty_message = 'No hay ejercicios que coincidan con los filtros seleccionados.'
+    elif search_query:
         subtitle = f'Resultados para "{search_query}".'
         empty_message = f'No hay ejercicios que coincidan con "{search_query}".'
     else:
@@ -177,12 +204,17 @@ def exercise_list(request):
         'exercises': page_obj.object_list,
         'page_obj': page_obj,
         'search_query': search_query,
+        'active_category': category,
+        'active_difficulty': difficulty,
+        'active_muscle': muscle,
         'show_search': True,
         'favorites_ids': get_favorites_ids(request),
         'page_title': 'Todos los ejercicios',
         'page_subtitle': subtitle,
         'page_kicker': 'Ejercicios',
         'empty_message': empty_message,
+        'category_choices': Exercise.CATEGORY_CHOICES,
+        'difficulty_choices': Exercise.DIFFICULTY_CHOICES,
     }
     return render(request, 'exercises/exercise_collection.html', context)
 
@@ -428,6 +460,7 @@ def dashboard(request):
         'total_minutes': stats['total_minutes'] or 0,
         'avg_rpe': round(stats['avg_rpe'], 1) if stats['avg_rpe'] is not None else None,
         'weekly_chart': build_weekly_chart(log_dates, today),
+        'vapid_public_key': django_settings.VAPID_PUBLIC_KEY,
     }
     return render(request, 'exercises/dashboard.html', context)
 
@@ -609,3 +642,105 @@ def generate_routine_view(request):
             messages.error(request, 'No se pudo generar la rutina. Inténtalo de nuevo.')
 
     return render(request, 'exercises/generate_routine.html', _generate_routine_defaults(request.user))
+
+
+@login_required
+@require_POST
+def save_push_subscription(request):
+    """Guardar o actualizar una suscripcion push del navegador."""
+    try:
+        data = json.loads(request.body)
+        endpoint = data.get('endpoint', '')
+        keys = data.get('keys', {})
+        p256dh = keys.get('p256dh', '')
+        auth = keys.get('auth', '')
+
+        if not endpoint or not p256dh or not auth:
+            return JsonResponse({'status': 'error', 'message': 'Datos incompletos'}, status=400)
+
+        subscription, created = PushSubscription.objects.update_or_create(
+            user=request.user,
+            endpoint=endpoint,
+            defaults={'p256dh': p256dh, 'auth': auth},
+        )
+        return JsonResponse({'status': 'success', 'created': created})
+    except (json.JSONDecodeError, KeyError) as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+def remove_push_subscription(request):
+    """Eliminar una suscripcion push."""
+    try:
+        data = json.loads(request.body)
+        endpoint = data.get('endpoint', '')
+        PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
+        return JsonResponse({'status': 'success'})
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'JSON invalido'}, status=400)
+
+
+def exercise_autocomplete(request):
+    """Devuelve sugerencias de autocompletado para el buscador."""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'suggestions': []})
+
+    exercises = Exercise.objects.filter(
+        Q(name__icontains=q) | Q(muscles_targeted__icontains=q)
+    ).values('name', 'slug', 'category', 'difficulty')[:8]
+
+    suggestions = [
+        {
+            'name': ex['name'],
+            'slug': ex['slug'],
+            'category': dict(Exercise.CATEGORY_CHOICES).get(ex['category'], ex['category']),
+            'difficulty': dict(Exercise.DIFFICULTY_CHOICES).get(ex['difficulty'], ex['difficulty']),
+        }
+        for ex in exercises
+    ]
+    return JsonResponse({'suggestions': suggestions})
+
+
+def exercise_filters(request):
+    """Devuelve los valores únicos de músculos para el filtro."""
+    muscles = (
+        Exercise.objects.exclude(muscles_targeted='')
+        .values_list('muscles_targeted', flat=True)
+    )
+    muscle_set = set()
+    for text in muscles:
+        for part in text.replace('\n', ',').split(','):
+            part = part.strip()
+            if part:
+                muscle_set.add(part)
+
+    return JsonResponse({
+        'muscles': sorted(muscle_set),
+        'categories': list(Exercise.CATEGORY_CHOICES),
+        'difficulties': list(Exercise.DIFFICULTY_CHOICES),
+    })
+
+
+def workout_export(request, slug):
+    """Devuelve JSON con los datos de la rutina para generar imagen compartible."""
+    workout = get_object_or_404(Workout, slug=slug)
+    exercises = workout.exercises.select_related('exercise').order_by('order')
+
+    return JsonResponse({
+        'title': workout.title,
+        'description': workout.description,
+        'difficulty': workout.difficulty,
+        'duration': workout.estimated_duration,
+        'slug': workout.slug,
+        'exercises': [
+            {
+                'name': item.exercise.name,
+                'sets': item.sets,
+                'reps': item.reps,
+                'notes': item.notes or '',
+            }
+            for item in exercises
+        ],
+    })

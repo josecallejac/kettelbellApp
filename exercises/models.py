@@ -301,3 +301,20 @@ class WorkoutLog(models.Model):
         
     def __str__(self):
         return f"{self.user.username} - {self.workout.title} ({self.completed_at.strftime('%Y-%m-%d')})"
+
+
+class PushSubscription(models.Model):
+    """Suscripcion push de un navegador para notificaciones."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_subscriptions')
+    endpoint = models.URLField(max_length=500)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'endpoint')
+        verbose_name = 'Suscripcion Push'
+        verbose_name_plural = 'Suscripciones Push'
+
+    def __str__(self):
+        return f"Push: {self.user.username} ({self.endpoint[:50]}...)"

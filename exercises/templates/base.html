@@ -12,8 +12,15 @@
     />
     {% load static %}
     <link rel="icon" type="image/svg+xml" href="{% static 'exercises/img/favicon.svg' %}?v=20260507" />
-    <meta name="theme-color" content="#0f172a" />
-    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260706-light" />
+    <link rel="manifest" href="{% static 'exercises/manifest.json' %}" />
+    <meta name="theme-color" content="#0f172a" id="meta-theme-color" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="{% static 'exercises/img/icon-192.png' %}" />
+    <script>
+      (function(){var t=localStorage.getItem('kb-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+    </script>
+    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260714-consolidated" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -43,6 +50,9 @@
             <a href="{% url 'exercises:landing' %}" class="nav-link">Inicio</a>
             <a href="{% url 'exercises:workout_list' %}" class="nav-link">Entrenamientos</a>
             <a href="{% url 'exercises:generate_routine' %}" class="nav-link nav-link-feature">Rutina IA</a>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar tema">
+              <span class="theme-icon" id="theme-icon">🌙</span>
+            </button>
             {% if user.is_authenticated %}
             <a href="{% url 'exercises:dashboard' %}" class="nav-link">Mi Panel</a>
             <a href="{% url 'exercises:profile' %}" class="nav-link">Mi Perfil</a>
@@ -130,18 +140,52 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-        const toggle = document.querySelector('.nav-toggle');
+        /* ---- Mobile hamburger ---- */
+        const navToggle = document.querySelector('.nav-toggle');
         const navigation = document.getElementById('site-navigation');
 
-        if (!toggle || !navigation) return;
+        if (navToggle && navigation) {
+          navToggle.addEventListener('click', function() {
+            const isOpen = navigation.classList.toggle('is-open');
+            navToggle.classList.toggle('is-open', isOpen);
+            navToggle.setAttribute('aria-expanded', String(isOpen));
+          });
+        }
 
-        toggle.addEventListener('click', function() {
-          const isOpen = navigation.classList.toggle('is-open');
-          toggle.classList.toggle('is-open', isOpen);
-          toggle.setAttribute('aria-expanded', String(isOpen));
-        });
+        /* ---- Theme toggle ---- */
+        const themeBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+
+        function getTheme() {
+          return document.documentElement.getAttribute('data-theme') || 'dark';
+        }
+
+        function setTheme(theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+          localStorage.setItem('kb-theme', theme);
+          themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
+          document.querySelector('meta[name="theme-color"]')
+            .setAttribute('content', theme === 'dark' ? '#0f172a' : '#f8fafc');
+        }
+
+        /* Initialize icon from current state */
+        setTheme(getTheme());
+
+        if (themeBtn) {
+          themeBtn.addEventListener('click', function() {
+            setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+          });
+        }
       });
     </script>
     {% block extra_js %}{% endblock %}
+
+    <script>
+      /* Register Service Worker */
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('{% static "exercises/sw.js" %}', { scope: '/' })
+          .catch(function(err) { console.log('SW registration failed:', err); });
+      }
+    </script>
   </body>
 </html>

@@ -4,7 +4,7 @@
 {% block title %}Mis Favoritos - KettleBell Pro{% endblock %}
 
 {% block content %}
-<section class="hero" style="min-height: 40vh; display: flex; align-items: center; padding-top: 80px;">
+<section class="favorites-hero">
     <div class="hero-overlay"></div>
     <div class="container">
         <div class="hero-content" style="text-align: center;">
@@ -18,7 +18,7 @@
     </div>
 </section>
 
-<section class="exercises-section" style="background: #0f172a; padding: 60px 0;">
+<section class="exercises-section favorites-section">
     <div class="container">
         {% if exercises %}
         <div class="exercises-grid">
@@ -53,10 +53,10 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="empty-state" style="text-align: center; padding: 60px 0;">
-            <div class="empty-icon" style="font-size: 4rem; margin-bottom: 20px;">💔</div>
-            <h3 class="empty-title" style="font-size: 1.5rem; color: white; margin-bottom: 10px;">No tienes favoritos aún</h3>
-            <p class="empty-text" style="color: #94a3b8; margin-bottom: 30px;">Explora la biblioteca y guarda tus ejercicios preferidos.</p>
+        <div class="empty-state">
+            <div class="empty-icon">💔</div>
+            <h3 class="empty-title">No tienes favoritos aún</h3>
+            <p class="empty-text">Explora la biblioteca y guarda tus ejercicios preferidos.</p>
             <a href="{% url 'exercises:landing' %}" class="btn btn-primary">Explorar Ejercicios</a>
         </div>
         {% endif %}

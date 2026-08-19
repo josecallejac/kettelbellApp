@@ -3,6 +3,44 @@
 
 {% block title %}Mi Panel - KettleBell Pro{% endblock %}
 
+{% block extra_js %}
+<script src="{% static 'exercises/js/notifications.js' %}"></script>
+<script>
+  (async function() {
+    /* Show push banner only if supported and not already subscribed */
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+
+    const banner = document.getElementById('push-banner');
+    const btn = document.getElementById('push-toggle-btn');
+
+    await KBNotifications.init('{{ vapid_public_key|escapejs }}');
+
+    const subscribed = await KBNotifications.isSubscribed();
+    if (subscribed) {
+      banner.style.display = 'flex';
+      btn.textContent = '🔕 Desactivar notificaciones';
+    } else if (Notification.permission !== 'denied') {
+      banner.style.display = 'flex';
+      btn.textContent = '🔔 Activar notificaciones';
+    }
+  })();
+
+  async function handlePushToggle() {
+    const btn = document.getElementById('push-toggle-btn');
+    btn.disabled = true;
+    btn.textContent = 'Procesando...';
+
+    const nowSubscribed = await KBNotifications.toggle();
+    if (nowSubscribed) {
+      btn.textContent = '🔕 Desactivar notificaciones';
+    } else {
+      btn.textContent = '🔔 Activar notificaciones';
+    }
+    btn.disabled = false;
+  }
+</script>
+{% endblock %}
+
 {% block content %}
 <section class="dashboard-section">
     <div class="container">
@@ -18,6 +56,17 @@
                 <p>Deja que diseñemos la rutina perfecta para ti en segundos.</p>
             </div>
             <a href="{% url 'exercises:generate_routine' %}" class="btn btn-primary">✨ Generar Rutina</a>
+        </div>
+
+        <!-- Push Notifications -->
+        <div class="ai-banner" id="push-banner" style="display: none;">
+            <div class="ai-banner-copy">
+                <h2>🔔 Notificaciones de entrenamiento</h2>
+                <p>Recibe recordatorios para mantener tu racha activa.</p>
+            </div>
+            <button class="btn btn-primary" id="push-toggle-btn" onclick="handlePushToggle()">
+                Activar notificaciones
+            </button>
         </div>
 
         <div class="stats-grid">
@@ -169,394 +218,4 @@
     </div>
 </section>
 
-<style>
-    .dashboard-section {
-        padding: var(--spacing-xl) 0;
-    }
-
-    .dashboard-header {
-        margin-bottom: var(--spacing-xl);
-    }
-
-    .ai-banner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--spacing-lg);
-        flex-wrap: wrap;
-        background: linear-gradient(90deg, rgba(30, 58, 138, 0.5), rgba(49, 46, 129, 0.5));
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        border-radius: var(--radius-2xl);
-        padding: var(--spacing-lg) var(--spacing-xl);
-        margin-bottom: var(--spacing-2xl);
-    }
-
-    .ai-banner-copy h2 {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: white;
-        margin-bottom: 0.25rem;
-    }
-
-    .ai-banner-copy p {
-        color: var(--text-secondary);
-        margin: 0;
-    }
-    
-    .dashboard-title {
-        font-size: 2.5rem;
-        font-weight: 800;
-        margin-bottom: var(--spacing-xs);
-    }
-    
-    .dashboard-subtitle {
-        color: var(--text-secondary);
-        font-size: 1.1rem;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: var(--spacing-lg);
-        margin-bottom: var(--spacing-2xl);
-    }
-    
-    .stat-card {
-        background: var(--bg-secondary);
-        padding: var(--spacing-lg);
-        border-radius: var(--radius-xl);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-lg);
-    }
-    
-    .stat-icon {
-        font-size: 2.5rem;
-        background: rgba(255, 255, 255, 0.05);
-        width: 60px;
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: var(--radius-lg);
-    }
-    
-    .stat-info {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--primary-light);
-        line-height: 1;
-        margin-bottom: 4px;
-    }
-    
-    .stat-label {
-        font-size: 0.875rem;
-        color: var(--text-muted);
-    }
-
-    /* Gráfico semanal */
-    .weekly-chart-section {
-        margin-bottom: var(--spacing-2xl);
-    }
-
-    .weekly-chart {
-        display: flex;
-        align-items: stretch;
-        gap: var(--spacing-sm);
-        background: var(--bg-secondary);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: var(--radius-xl);
-        padding: var(--spacing-lg);
-        height: 180px;
-    }
-
-    .weekly-bar-slot {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 6px;
-        min-width: 0;
-    }
-
-    .weekly-count {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--text-muted);
-    }
-
-    .weekly-bar {
-        width: 100%;
-        max-width: 48px;
-        min-height: 2px;
-        border-radius: var(--radius-md) var(--radius-md) 0 0;
-        background: linear-gradient(180deg, var(--primary-light, #818cf8), rgba(99, 102, 241, 0.4));
-    }
-
-    .weekly-label {
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        white-space: nowrap;
-    }
-
-    .activity-metrics {
-        display: flex;
-        gap: var(--spacing-xs);
-        flex-wrap: wrap;
-        margin-top: 4px;
-    }
-
-    .metric-chip {
-        font-size: 0.7rem;
-        color: var(--text-secondary);
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: var(--radius-md);
-        padding: 0.15rem 0.5rem;
-    }
-
-    .activity-notes {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        margin: 4px 0 0;
-        font-style: italic;
-    }
-
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: var(--spacing-2xl);
-    }
-    
-    .column-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: var(--spacing-lg);
-        padding-bottom: var(--spacing-xs);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* Activity List */
-    .activity-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--spacing-md);
-    }
-    
-    .activity-item {
-        background: var(--bg-secondary);
-        padding: var(--spacing-md);
-        border-radius: var(--radius-lg);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-md);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        transition: transform 0.2s;
-    }
-    
-    .activity-item:hover {
-        transform: translateX(5px);
-        background: var(--bg-tertiary);
-    }
-    
-    .activity-icon {
-        font-size: 1.5rem;
-    }
-    
-    .activity-content {
-        flex: 1;
-    }
-    
-    .activity-name {
-        font-size: 1rem;
-        font-weight: 600;
-        margin-bottom: 2px;
-    }
-    
-    .activity-date {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-    }
-
-    /* Favorites Grid */
-    .favorites-grid-mini {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: var(--spacing-md);
-    }
-    
-    .favorite-mini-card {
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-        padding: var(--spacing-md);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-md);
-        text-decoration: none;
-        color: var(--text-primary);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        transition: all 0.2s;
-    }
-    
-    .favorite-mini-card:hover {
-        background: var(--bg-tertiary);
-        transform: translateY(-2px);
-    }
-    
-    .mini-thumb {
-        width: 40px;
-        height: 40px;
-        border-radius: var(--radius-md);
-        overflow: hidden;
-        background: rgba(0,0,0,0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-        flex-shrink: 0;
-    }
-    
-    .mini-thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .mini-info {
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-    
-    .mini-name {
-        font-weight: 600;
-        font-size: 0.9rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .mini-cat {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-    }
-
-    .empty-state-card {
-        background: rgba(255, 255, 255, 0.02);
-        border-radius: var(--radius-lg);
-        padding: var(--spacing-lg);
-        text-align: center;
-        border: 1px dashed rgba(255, 255, 255, 0.1);
-    }
-    
-    .empty-state-card p {
-        color: var(--text-muted);
-        margin-bottom: var(--spacing-md);
-    }
-    
-    .btn-sm {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.8rem;
-    }
-
-    /* Mis Rutinas */
-    .my-workouts-section {
-        margin-bottom: var(--spacing-2xl);
-    }
-
-    .my-workouts-grid {
-        display: flex;
-        flex-direction: column;
-        gap: var(--spacing-md);
-    }
-
-    .my-workout-card {
-        background: var(--bg-secondary);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: var(--radius-lg);
-        padding: var(--spacing-md) var(--spacing-lg);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: var(--spacing-md);
-        flex-wrap: wrap;
-    }
-
-    .my-workout-title {
-        font-size: 1.05rem;
-        margin-bottom: 6px;
-    }
-
-    .my-workout-title a {
-        color: var(--text-primary);
-        text-decoration: none;
-    }
-
-    .my-workout-title a:hover {
-        color: var(--primary-light);
-    }
-
-    .my-workout-meta {
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        flex-wrap: wrap;
-    }
-
-    .my-workout-meta .tag {
-        padding: 0.2rem 0.6rem;
-        border-radius: var(--radius-md);
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .difficulty-beginner { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .difficulty-intermediate { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-    .difficulty-advanced { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-
-    .meta-item {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-    }
-
-    .my-workout-actions {
-        display: flex;
-        gap: var(--spacing-xs);
-        align-items: center;
-    }
-
-    .my-workout-actions form {
-        margin: 0;
-    }
-
-    .btn-outline {
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: var(--text-primary);
-        background: transparent;
-    }
-
-    .btn-danger-outline {
-        border: 1px solid rgba(239, 68, 68, 0.5);
-        color: #f87171;
-        background: transparent;
-        cursor: pointer;
-    }
-
-    .btn-danger-outline:hover {
-        background: rgba(239, 68, 68, 0.15);
-    }
-
-    .empty-actions {
-        display: flex;
-        gap: var(--spacing-sm);
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-</style>
 {% endblock %}

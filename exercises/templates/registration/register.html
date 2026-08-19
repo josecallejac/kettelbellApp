@@ -3,28 +3,26 @@
 {% block title %}Registrarse - KettleBell Pro{% endblock %}
 
 {% block content %}
-<section class="auth-section" style="padding: 120px 0; min-height: 80vh; display: flex; align-items: center;">
+<section class="auth-section">
     <div class="container">
-        <div class="auth-card" style="max-width: 450px; margin: 0 auto; background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px;">
-            <div class="auth-header" style="text-align: center; margin-bottom: 30px;">
-                <h1 style="font-size: 2rem; font-weight: 800; color: white; margin-bottom: 10px;">Crea tu cuenta</h1>
-                <p style="color: #94a3b8;">Únete a KettleBell Pro hoy mismo</p>
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Crea tu cuenta</h1>
+                <p>Únete a KettleBell Pro hoy mismo</p>
             </div>
-            
+
             <form method="post" action="{% url 'exercises:register' %}">
                 {% csrf_token %}
-                
+
                 {% for field in form %}
                 <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="{{ field.id_for_label }}" style="display: block; color: #cbd5e1; margin-bottom: 8px; font-weight: 500;">
-                        {{ field.label }}
-                    </label>
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
                     {% if field.help_text %}
-                    <small style="display: block; color: #64748b; margin-top: 5px; font-size: 0.85rem;">{{ field.help_text }}</small>
+                    <small class="field-hint">{{ field.help_text }}</small>
                     {% endif %}
                     {% if field.errors %}
-                    <div style="color: #fca5a5; font-size: 0.85rem; margin-top: 5px;">
+                    <div class="field-error">
                         {% for error in field.errors %}
                             <p style="margin: 0;">{{ error }}</p>
                         {% endfor %}
@@ -33,15 +31,15 @@
                 </div>
                 {% endfor %}
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; margin-top: 10px;">
+                <button type="submit" class="btn btn-primary btn-full" style="margin-top: 10px;">
                     Registrarse
                 </button>
             </form>
 
-            <div class="auth-footer" style="text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-                <p style="color: #94a3b8;">
-                    ¿Ya tienes una cuenta? 
-                    <a href="{% url 'exercises:login' %}" style="color: #60a5fa; text-decoration: none; font-weight: 600;">Inicia sesión</a>
+            <div class="auth-footer">
+                <p>
+                    ¿Ya tienes una cuenta?
+                    <a href="{% url 'exercises:login' %}">Inicia sesión</a>
                 </p>
             </div>
         </div>
