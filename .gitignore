@@ -3,3 +3,12 @@ db.sqlite3
 venv
 __pycache__/
 *.pyc
+.coverage
+.agents/
+.claude/
+scratch/
+*.sqlite3
+take_screenshots*.py
+ORIGINAL_REQUEST.md
+TEST_INFRA.md
+TEST_READY.md

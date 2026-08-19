@@ -24,7 +24,7 @@ CATALOG_IMAGES_DIR = Path(settings.BASE_DIR) / 'exercises/static/exercises/img/c
 
 def catalog_image_for(name):
     """Nombre de archivo de la imagen del catalogo si existe en static, o ''."""
-    filename = name.lower().replace(':', '').replace(',', '').replace(' ', '_') + '.jpg'
+    filename = name.lower().replace(':', '').replace(',', '').replace('-', '_').replace(' ', '_') + '.jpg'
     if (CATALOG_IMAGES_DIR / filename).exists():
         return filename
     return ''

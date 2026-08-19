@@ -543,6 +543,145 @@ body {
 }
 
 /* ==========================================
+   Video Highlights Section
+   ========================================== */
+.video-section {
+  padding: var(--spacing-2xl) 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.video-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all var(--transition-base);
+}
+
+.video-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-lg);
+}
+
+.video-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.video-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.video-card:hover .video-thumb-img {
+  transform: scale(1.08);
+}
+
+.video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  font-size: 1.4rem;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: all var(--transition-base);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+}
+
+.video-card:hover .video-play {
+  background: var(--primary-color);
+  transform: translate(-50%, -50%) scale(1.12);
+  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.55);
+}
+
+.video-meta {
+  padding: var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.video-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-tag {
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-md);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.video-tag.Principiante,
+.video-tag[class*="beginner"] {
+  background: #22c55e;
+  color: white;
+}
+
+.video-tag.Intermedio,
+.video-tag[class*="intermediate"] {
+  background: #f59e0b;
+  color: white;
+}
+
+.video-tag.Avanzado,
+.video-tag[class*="advanced"] {
+  background: #ef4444;
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+  .video-play {
+    width: 48px;
+    height: 48px;
+    font-size: 1.1rem;
+  }
+}
+
+/* ==========================================
    Exercises Section
    ========================================== */
 .exercises-section {

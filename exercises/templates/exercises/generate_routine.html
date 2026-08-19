@@ -20,8 +20,7 @@
                 <div class="gen-group">
                     <label class="gen-label"><span class="dot dot-blue"></span> Duración Total</label>
                     <div class="option-grid cols-4">
-                        {% for value in "15,30,45,60"|make_list %}{% endfor %}
-                        <label class="option-tile">
+                                                <label class="option-tile">
                             <input type="radio" name="duration" value="15">
                             <span class="tile-body"><span class="tile-big">15</span><span class="tile-small">min</span></span>
                         </label>
@@ -119,87 +118,4 @@
     </div>
 </section>
 
-<style>
-.generator-section { padding: var(--spacing-2xl) 0; }
-.container-sm { max-width: 780px; margin: 0 auto; padding: 0 var(--spacing-md); }
-
-.generator-card {
-    background: var(--bg-secondary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-2xl);
-    overflow: hidden;
-}
-
-.generator-header {
-    text-align: center;
-    padding: var(--spacing-2xl) var(--spacing-xl) var(--spacing-xl);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.generator-badge {
-    width: 64px; height: 64px;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 1.8rem;
-    border-radius: var(--radius-xl);
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-    margin-bottom: var(--spacing-md);
-}
-
-.generator-title { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 800; margin-bottom: var(--spacing-sm); }
-.generator-subtitle { color: var(--text-muted); max-width: 34rem; margin: 0 auto; line-height: 1.6; }
-
-.generator-form { padding: var(--spacing-xl); display: flex; flex-direction: column; gap: var(--spacing-2xl); }
-
-.gen-label {
-    display: flex; align-items: center; gap: 0.5rem;
-    font-size: 0.78rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-md);
-}
-
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.dot-blue { background: #3b82f6; }
-.dot-green { background: #22c55e; }
-.dot-purple { background: #a855f7; }
-
-.option-grid { display: grid; gap: var(--spacing-md); }
-.option-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.option-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-
-.option-tile { position: relative; cursor: pointer; display: block; }
-.option-tile input { position: absolute; opacity: 0; width: 0; height: 0; }
-
-.tile-body {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100%;
-    padding: var(--spacing-md);
-    background: var(--bg-tertiary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-lg);
-    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
-    text-align: center;
-}
-.tile-tall { gap: 0.5rem; min-height: 120px; }
-
-.option-tile:hover .tile-body { border-color: rgba(255, 255, 255, 0.25); transform: translateY(-2px); }
-.option-tile input:checked + .tile-body {
-    border-color: var(--primary-color);
-    background: rgba(99, 102, 241, 0.12);
-    box-shadow: 0 0 0 1px var(--primary-color) inset;
-}
-.option-tile input:focus-visible + .tile-body { outline: 2px solid var(--primary-light); outline-offset: 2px; }
-
-.tile-big { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); }
-.tile-small { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
-.tile-emoji { font-size: 1.6rem; }
-.tile-name { font-weight: 700; color: var(--text-primary); font-size: 0.95rem; }
-.tile-desc { font-size: 0.75rem; color: var(--text-muted); }
-
-.generator-submit { width: 100%; justify-content: center; }
-
-@media (max-width: 640px) {
-    .option-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
-    .option-grid.cols-3 { grid-template-columns: 1fr; }
-}
-</style>
 {% endblock %}
