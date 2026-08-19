@@ -822,6 +822,51 @@ def remove_push_subscription(request):
         return JsonResponse({'status': 'error', 'message': 'JSON invalido'}, status=400)
 
 
+@login_required
+@require_POST
+@rate_limit('push-test', max_requests=3, window_seconds=60)
+def send_test_notification(request):
+    """Envía una notificación de prueba al usuario actual."""
+    from pywebpush import WebPushException, webpush
+    import json as _json
+
+    if not django_settings.VAPID_PRIVATE_KEY:
+        return JsonResponse(
+            {'status': 'error', 'message': 'VAPID no configurado'}, status=500
+        )
+
+    subscriptions = PushSubscription.objects.filter(user=request.user)
+    if not subscriptions.exists():
+        return JsonResponse(
+            {'status': 'error', 'message': 'No tienes suscripciones push activas'}, status=400
+        )
+
+    payload = _json.dumps({
+        'title': '¡KettleBell Pro! 🔔',
+        'body': 'Las notificaciones están funcionando correctamente.',
+        'url': '/dashboard/',
+    })
+
+    vapid_claims = {'sub': f'mailto:{django_settings.VAPID_ADMIN_EMAIL}'}
+    sent = 0
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
+                },
+                data=payload,
+                vapid_private_key=django_settings.VAPID_PRIVATE_KEY,
+                vapid_claims=vapid_claims,
+            )
+            sent += 1
+        except WebPushException:
+            pass
+
+    return JsonResponse({'status': 'success', 'sent': sent})
+
+
 @rate_limit('autocomplete', max_requests=60, window_seconds=60)
 def exercise_autocomplete(request):
     """Devuelve sugerencias de autocompletado para el buscador."""

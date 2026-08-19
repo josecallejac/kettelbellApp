@@ -19,6 +19,7 @@
     if (subscribed) {
       banner.style.display = 'flex';
       btn.textContent = '🔕 Desactivar notificaciones';
+      document.getElementById('push-test-btn').style.display = '';
     } else if (Notification.permission !== 'denied') {
       banner.style.display = 'flex';
       btn.textContent = '🔔 Activar notificaciones';
@@ -33,10 +34,33 @@
     const nowSubscribed = await KBNotifications.toggle();
     if (nowSubscribed) {
       btn.textContent = '🔕 Desactivar notificaciones';
+      document.getElementById('push-test-btn').style.display = '';
     } else {
       btn.textContent = '🔔 Activar notificaciones';
+      document.getElementById('push-test-btn').style.display = 'none';
     }
     btn.disabled = false;
+  }
+
+  async function handlePushTest() {
+    const btn = document.getElementById('push-test-btn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try {
+      const resp = await fetch('{% url "exercises:push_subscription_test" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'},
+      });
+      const data = await resp.json();
+      if (data.status === 'success') {
+        btn.textContent = '✅ Enviada';
+      } else {
+        btn.textContent = '❌ ' + (data.message || 'Error');
+      }
+    } catch {
+      btn.textContent = '❌ Error de red';
+    }
+    setTimeout(() => { btn.textContent = 'Enviar prueba'; btn.disabled = false; }, 3000);
   }
 </script>
 {% endblock %}
@@ -64,9 +88,14 @@
                 <h2>🔔 Notificaciones de entrenamiento</h2>
                 <p>Recibe recordatorios para mantener tu racha activa.</p>
             </div>
-            <button class="btn btn-primary" id="push-toggle-btn" onclick="handlePushToggle()">
-                Activar notificaciones
-            </button>
+            <div class="push-actions">
+                <button class="btn btn-primary" id="push-toggle-btn" onclick="handlePushToggle()">
+                    Activar notificaciones
+                </button>
+                <button class="btn btn-outline btn-sm" id="push-test-btn" onclick="handlePushTest()" style="display:none;">
+                    Enviar prueba
+                </button>
+            </div>
         </div>
 
         <div class="stats-grid">

@@ -1,5 +1,7 @@
 import json
+from unittest.mock import patch
 
+from django.conf import settings as django_settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import Client, TestCase
@@ -827,6 +829,33 @@ class PushSubscriptionTests(TestCase):
             json.dumps({'endpoint': 'x'}),
             content_type='application/json',
         )
+        self.assertEqual(response.status_code, 302)
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_test_notification(self, mock_webpush):
+        PushSubscription.objects.create(
+            user=self.user, endpoint='https://example.com/push',
+            p256dh='k', auth='a',
+        )
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertEqual(response.json()['sent'], 1)
+        mock_webpush.assert_called_once()
+
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_test_notification_no_subscriptions(self):
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('No tienes suscripciones', response.json()['message'])
+
+    def test_send_test_notification_unauthenticated(self):
+        self.client.logout()
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
         self.assertEqual(response.status_code, 302)
 
 

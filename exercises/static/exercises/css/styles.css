@@ -1869,6 +1869,7 @@ body {
 .rpe-bar { background: linear-gradient(to top, #22c55e, #ef4444); }
 .weekly-label { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
 .personal-records-section { margin-bottom: var(--spacing-2xl); }
+.push-actions { display: flex; gap: var(--spacing-sm); align-items: center; }
 .activity-metrics { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; margin-top: 4px; }
 .metric-chip { font-size: 0.7rem; color: var(--text-secondary); background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 0.15rem 0.5rem; }
 .activity-notes { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0; font-style: italic; }
