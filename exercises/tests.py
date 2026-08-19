@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -672,6 +673,7 @@ class TaxonomyViewTests(TestCase):
 
 class PushSubscriptionTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(username='pushuser', password='password123')
         self.client.login(username='pushuser', password='password123')
         self.save_url = reverse('exercises:push_subscription')
@@ -949,3 +951,92 @@ class UserProfileFocusTests(TestCase):
         profile = UserProfile(user=self.user)
         profile.goal = 'unknown_goal'
         self.assertEqual(profile.focus, 'mix')
+
+
+class RateLimitTests(TestCase):
+    """Tests for the rate_limit decorator on API endpoints."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='rluser', password='password123')
+        self.client.login(username='rluser', password='password123')
+        self.exercise = Exercise.objects.create(
+            name='RL Test', description='x', category='strength', difficulty='beginner'
+        )
+        self.workout = Workout.objects.create(
+            title='RL Workout', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+
+    def _clear_cache(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_toggle_favorite_rate_limit(self):
+        self._clear_cache()
+        url = reverse('exercises:toggle_favorite')
+        payload = json.dumps({'exercise_id': self.exercise.id})
+        # 30 requests should pass
+        for _ in range(30):
+            resp = self.client.post(url, payload, content_type='application/json')
+            self.assertIn(resp.status_code, (200, 400))
+        # 31st should be rate limited
+        resp = self.client.post(url, payload, content_type='application/json')
+        self.assertEqual(resp.status_code, 429)
+        self.assertIn('Demasiadas', resp.json()['message'])
+
+    def test_log_workout_rate_limit(self):
+        self._clear_cache()
+        url = reverse('exercises:log_workout')
+        payload = json.dumps({'workout_id': self.workout.id})
+        # 10 requests should pass
+        for _ in range(10):
+            resp = self.client.post(url, payload, content_type='application/json')
+            self.assertEqual(resp.status_code, 200)
+        # 11th should be rate limited
+        resp = self.client.post(url, payload, content_type='application/json')
+        self.assertEqual(resp.status_code, 429)
+
+    def test_push_subscription_rate_limit(self):
+        self._clear_cache()
+        url = reverse('exercises:push_subscription')
+        for i in range(5):
+            payload = json.dumps({
+                'endpoint': f'https://example.com/push/{i}',
+                'keys': {'p256dh': 'k', 'auth': 'a'},
+            })
+            resp = self.client.post(url, payload, content_type='application/json')
+            self.assertEqual(resp.status_code, 200)
+        # 6th should be rate limited
+        payload = json.dumps({
+            'endpoint': 'https://example.com/push/6',
+            'keys': {'p256dh': 'k', 'auth': 'a'},
+        })
+        resp = self.client.post(url, payload, content_type='application/json')
+        self.assertEqual(resp.status_code, 429)
+
+    def test_autocomplete_rate_limit(self):
+        self._clear_cache()
+        url = reverse('exercises:exercise_autocomplete')
+        # 60 requests should pass
+        for _ in range(60):
+            resp = self.client.get(url, {'q': 'test'})
+            self.assertEqual(resp.status_code, 200)
+        # 61st should be rate limited
+        resp = self.client.get(url, {'q': 'test'})
+        self.assertEqual(resp.status_code, 429)
+
+    def test_rate_limit_is_per_user(self):
+        """Different users have separate rate limit buckets."""
+        self._clear_cache()
+        other = User.objects.create_user(username='rl_other', password='password123')
+        url = reverse('exercises:toggle_favorite')
+        payload = json.dumps({'exercise_id': self.exercise.id})
+
+        # Exhaust the first user's limit
+        for _ in range(30):
+            self.client.post(url, payload, content_type='application/json')
+
+        # Other user should still be able to use the endpoint
+        self.client.login(username='rl_other', password='password123')
+        resp = self.client.post(url, payload, content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
