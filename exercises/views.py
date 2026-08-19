@@ -668,7 +668,45 @@ def log_workout(request):
         notes=notes.strip(),
     )
 
+    # Push notification: felicitación + check de PRs
+    _send_post_workout_push(request.user, workout.title, weight)
+
     return JsonResponse({'status': 'success'})
+
+
+def _send_post_workout_push(user, workout_title, weight_used):
+    """Send push after workout: congratulate + check for new PRs."""
+    from .push_utils import send_new_pr_push, send_workout_completed_push
+
+    today = timezone.localdate()
+    log_dates = list(
+        WorkoutLog.objects.filter(user=user)
+        .values_list('completed_at', flat=True)
+    )
+    log_dates = [timezone.localtime(dt).date() for dt in log_dates]
+    streak = compute_streak_days(log_dates, today)
+
+    send_workout_completed_push(
+        user,
+        workout_title=workout_title,
+        streak=streak,
+        weight=float(weight_used) if weight_used else None,
+    )
+
+    # Check for new weight PR
+    if weight_used:
+        previous_max = (
+            WorkoutLog.objects.filter(user=user, kettlebell_weight__isnull=False)
+            .exclude(kettlebell_weight=weight_used)
+            .aggregate(m=Max('kettlebell_weight'))['m']
+        )
+        if previous_max is None or weight_used > previous_max:
+            send_new_pr_push(user, 'weight', float(weight_used))
+
+    # Check for new streak PR
+    best_streak = _compute_best_streak(log_dates)
+    if streak > 1 and streak >= best_streak:
+        send_new_pr_push(user, 'streak', streak)
 
 @login_required
 def create_workout(request):
@@ -827,42 +865,23 @@ def remove_push_subscription(request):
 @rate_limit('push-test', max_requests=3, window_seconds=60)
 def send_test_notification(request):
     """Envía una notificación de prueba al usuario actual."""
-    from pywebpush import WebPushException, webpush
-    import json as _json
+    from .push_utils import send_push_to_user
 
     if not django_settings.VAPID_PRIVATE_KEY:
         return JsonResponse(
             {'status': 'error', 'message': 'VAPID no configurado'}, status=500
         )
 
-    subscriptions = PushSubscription.objects.filter(user=request.user)
-    if not subscriptions.exists():
+    if not PushSubscription.objects.filter(user=request.user).exists():
         return JsonResponse(
             {'status': 'error', 'message': 'No tienes suscripciones push activas'}, status=400
         )
 
-    payload = _json.dumps({
+    sent = send_push_to_user(request.user, {
         'title': '¡KettleBell Pro! 🔔',
         'body': 'Las notificaciones están funcionando correctamente.',
         'url': '/dashboard/',
     })
-
-    vapid_claims = {'sub': f'mailto:{django_settings.VAPID_ADMIN_EMAIL}'}
-    sent = 0
-    for sub in subscriptions:
-        try:
-            webpush(
-                subscription_info={
-                    'endpoint': sub.endpoint,
-                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
-                },
-                data=payload,
-                vapid_private_key=django_settings.VAPID_PRIVATE_KEY,
-                vapid_claims=vapid_claims,
-            )
-            sent += 1
-        except WebPushException:
-            pass
 
     return JsonResponse({'status': 'success', 'sent': sent})
 
