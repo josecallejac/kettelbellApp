@@ -1,6 +1,7 @@
 import json
 import os
 from html.parser import HTMLParser
+from django.core.cache import cache
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.core.management import call_command
@@ -51,6 +52,7 @@ class SimpleHTMLParser(HTMLParser):
 class KettlebellE2ETestSuite(TestCase):
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.client = Client()
         call_command('seed_catalog', clear=True)
         

@@ -1,12 +1,15 @@
 import json
 import logging
+import time
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
+from functools import wraps
 
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, JsonResponse
@@ -26,6 +29,39 @@ from .models import Exercise, Favorite, PushSubscription, UserProfile, Workout, 
 from .utils import RoutineGenerator
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+def rate_limit(key_prefix, max_requests=30, window_seconds=60):
+    """Decorator that limits requests per user (authenticated) or per IP.
+
+    Uses Django's cache backend.  Returns 429 when the limit is exceeded.
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            if request.user.is_authenticated:
+                identity = f"user:{request.user.pk}"
+            else:
+                identity = f"ip:{request.META.get('REMOTE_ADDR', 'unknown')}"
+            cache_key = f"rl:{key_prefix}:{identity}"
+            current = cache.get(cache_key)
+            if current is None:
+                cache.set(cache_key, 1, timeout=window_seconds)
+            elif current >= max_requests:
+                logger.warning("Rate limit exceeded: %s (%s)", key_prefix, identity)
+                return JsonResponse(
+                    {'status': 'error', 'message': 'Demasiadas solicitudes. Intenta más tarde.'},
+                    status=429,
+                )
+            else:
+                cache.incr(cache_key)
+            return view_func(request, *args, **kwargs)
+        return _wrapped
+    return decorator
+
 
 CATEGORY_ICONS = {
     'strength': '&#128170;',
@@ -94,6 +130,7 @@ def logout_view(request):
 
 @login_required
 @require_POST
+@rate_limit('toggle-favorite', max_requests=30, window_seconds=60)
 def toggle_favorite(request):
     data = parse_json_body(request)
     try:
@@ -494,6 +531,7 @@ def profile_view(request):
 
 @login_required
 @require_POST
+@rate_limit('log-workout', max_requests=10, window_seconds=60)
 def log_workout(request):
     data = parse_json_body(request)
     try:
@@ -646,6 +684,7 @@ def generate_routine_view(request):
 
 @login_required
 @require_POST
+@rate_limit('push-sub', max_requests=5, window_seconds=60)
 def save_push_subscription(request):
     """Guardar o actualizar una suscripcion push del navegador."""
     try:
@@ -670,6 +709,7 @@ def save_push_subscription(request):
 
 @login_required
 @require_POST
+@rate_limit('push-remove', max_requests=5, window_seconds=60)
 def remove_push_subscription(request):
     """Eliminar una suscripcion push."""
     try:
@@ -681,6 +721,7 @@ def remove_push_subscription(request):
         return JsonResponse({'status': 'error', 'message': 'JSON invalido'}, status=400)
 
 
+@rate_limit('autocomplete', max_requests=60, window_seconds=60)
 def exercise_autocomplete(request):
     """Devuelve sugerencias de autocompletado para el buscador."""
     q = request.GET.get('q', '').strip()
@@ -703,6 +744,7 @@ def exercise_autocomplete(request):
     return JsonResponse({'suggestions': suggestions})
 
 
+@rate_limit('exercise-filters', max_requests=60, window_seconds=60)
 def exercise_filters(request):
     """Devuelve los valores únicos de músculos para el filtro."""
     muscles = (
