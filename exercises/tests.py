@@ -563,6 +563,70 @@ class DashboardTests(TestCase):
         self.assertEqual(response.context['total_minutes'], 0)
         self.assertIsNone(response.context['avg_rpe'])
 
+    def test_dashboard_rpe_chart(self):
+        WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=7)
+        WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=9)
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        rpe_chart = response.context['rpe_chart']
+        self.assertEqual(len(rpe_chart), 8)
+        # La última semana debería tener promedio 8.0
+        self.assertEqual(rpe_chart[-1]['avg'], 8.0)
+
+    def test_dashboard_personal_records(self):
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=45,
+            kettlebell_weight=20, rpe=8,
+        )
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=30,
+            kettlebell_weight=16, rpe=6,
+        )
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        prs = response.context['personal_records']
+        self.assertEqual(prs['max_weight'], 20.0)
+        self.assertEqual(prs['longest_session'], 45)
+        self.assertEqual(prs['best_week'], 2)
+
+    def test_dashboard_personal_records_empty(self):
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        prs = response.context['personal_records']
+        self.assertNotIn('max_weight', prs)
+        self.assertNotIn('longest_session', prs)
+        self.assertEqual(prs['best_streak'], 0)
+        self.assertEqual(prs['best_week'], 0)
+
+    def test_dashboard_suggested_weight_from_history(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, kettlebell_weight=16,
+        )
+        # Crear el segundo log con completed_at explícito para asegurar orden
+        log2 = WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, kettlebell_weight=20,
+        )
+        WorkoutLog.objects.filter(pk=log2.pk).update(completed_at=now + timedelta(seconds=1))
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        # Debe sugerir el último peso usado (20)
+        self.assertEqual(response.context['suggested_weight'], 20.0)
+
+    def test_dashboard_suggested_weight_from_profile(self):
+        UserProfile.objects.create(user=self.user, level='intermediate', available_weights='8, 12, 16')
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        # Sin historial, fallback al perfil: intermediate -> index 1 -> 12
+        self.assertEqual(response.context['suggested_weight'], 12.0)
+
+    def test_dashboard_suggested_weight_none_without_data(self):
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        self.assertIsNone(response.context['suggested_weight'])
+
 
 class WorkoutLogApiTests(TestCase):
     def setUp(self):
