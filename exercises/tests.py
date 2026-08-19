@@ -1133,3 +1133,156 @@ class RateLimitTests(TestCase):
         self.client.login(username='rl_other', password='password123')
         resp = self.client.post(url, payload, content_type='application/json')
         self.assertEqual(resp.status_code, 200)
+
+
+class PushUtilsTests(TestCase):
+    """Tests for exercises.push_utils module."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='pushutil', password='password123')
+        PushSubscription.objects.create(
+            user=self.user, endpoint='https://example.com/push',
+            p256dh='k', auth='a',
+        )
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_push_to_user(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        sent = send_push_to_user(self.user, {'title': 'Test', 'body': 'Hello'})
+        self.assertEqual(sent, 1)
+        mock_webpush.assert_called_once()
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_push_cleans_expired_subscriptions(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        from pywebpush import WebPushException
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 410
+        mock_webpush.side_effect = WebPushException(
+            'Gone', response=mock_response
+        )
+
+        sent = send_push_to_user(self.user, {'title': 'Test'})
+        self.assertEqual(sent, 0)
+        self.assertFalse(
+            PushSubscription.objects.filter(user=self.user).exists()
+        )
+
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', '')
+    def test_send_push_without_vapid_returns_zero(self):
+        from exercises.push_utils import send_push_to_user
+        sent = send_push_to_user(self.user, {'title': 'Test'})
+        self.assertEqual(sent, 0)
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_workout_completed_push(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        import json
+        # Call synchronously to avoid thread timing issues
+        send_push_to_user(self.user, {
+            'title': '¡Entrenamiento completado! 💪',
+            'body': '"Rutina Fuerza" completada · 🔥 Racha de 5 días · 🏋️ 16 kg',
+            'url': '/dashboard/',
+            'type': 'workout_completed',
+        })
+        mock_webpush.assert_called_once()
+        call_args = mock_webpush.call_args
+        payload = json.loads(call_args.kwargs['data'])
+        self.assertIn('Rutina Fuerza', payload['body'])
+        self.assertEqual(payload['type'], 'workout_completed')
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_streak_reminder_push(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        send_push_to_user(self.user, {
+            'title': '¡No pierdas tu racha! 🔥',
+            'body': 'Entrena hoy para mantener tu racha activa.',
+            'url': '/dashboard/',
+            'type': 'streak_reminder',
+        })
+        mock_webpush.assert_called_once()
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_inactivity_push(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        import json
+        send_push_to_user(self.user, {
+            'title': 'Llevas 5 días sin entrenar 😟',
+            'body': 'Vuelve a la acción. Una sesión corta cuenta.',
+            'url': '/workouts/generate/',
+            'type': 'inactivity_alert',
+        })
+        mock_webpush.assert_called_once()
+        call_args = mock_webpush.call_args
+        payload = json.loads(call_args.kwargs['data'])
+        self.assertIn('5 días', payload['title'])
+        self.assertEqual(payload['type'], 'inactivity_alert')
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_new_pr_push(self, mock_webpush):
+        from exercises.push_utils import send_push_to_user
+        import json
+        send_push_to_user(self.user, {
+            'title': '¡Nuevo récord personal! 🏆',
+            'body': 'Nuevo peso máximo: 24 kg 🏋️',
+            'url': '/dashboard/',
+            'type': 'new_pr',
+        })
+        mock_webpush.assert_called_once()
+        call_args = mock_webpush.call_args
+        payload = json.loads(call_args.kwargs['data'])
+        self.assertIn('24', payload['body'])
+        self.assertEqual(payload['type'], 'new_pr')
+
+
+class PostWorkoutPushTests(TestCase):
+    """Tests for push notifications triggered after logging a workout."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='postpush', password='password123')
+        self.client.login(username='postpush', password='password123')
+        self.workout = Workout.objects.create(
+            title='Rutina Test', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        PushSubscription.objects.create(
+            user=self.user, endpoint='https://example.com/push',
+            p256dh='k', auth='a',
+        )
+        self.log_url = reverse('exercises:log_workout')
+
+    @patch('exercises.push_utils._send_async')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_log_workout_triggers_push(self, mock_send):
+        """log_workout should trigger push notification (via _send_async)."""
+        resp = self.client.post(
+            self.log_url,
+            json.dumps({'workout_id': self.workout.id, 'kettlebell_weight': 16}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        # _send_async should have been called at least once (congratulations)
+        self.assertTrue(mock_send.called)
+
+    @patch('exercises.push_utils._send_async')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_log_workout_detects_weight_pr(self, mock_send):
+        """New weight PR should trigger an extra push notification."""
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.workout, kettlebell_weight=12,
+        )
+        self.client.post(
+            self.log_url,
+            json.dumps({'workout_id': self.workout.id, 'kettlebell_weight': 20}),
+            content_type='application/json',
+        )
+        # Should be called at least twice: congratulations + PR
+        self.assertGreaterEqual(mock_send.call_count, 2)
