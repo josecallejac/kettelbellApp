@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from .models import Exercise, Favorite, UserProfile, Workout, WorkoutLog
+from .models import Exercise, Favorite, PushSubscription, UserProfile, Workout, WorkoutExercise, WorkoutLog
 from .utils import RoutineGenerator
 
 
@@ -668,3 +668,284 @@ class TaxonomyViewTests(TestCase):
         response = self.client.get(reverse('exercises:landing'))
         self.assertLessEqual(len(response.context['featured_exercises']), 8)
         self.assertEqual(response.context['total_exercises'], 20)
+
+
+class PushSubscriptionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='pushuser', password='password123')
+        self.client.login(username='pushuser', password='password123')
+        self.save_url = reverse('exercises:push_subscription')
+        self.remove_url = reverse('exercises:push_subscription_remove')
+
+    def test_save_push_subscription(self):
+        payload = {
+            'endpoint': 'https://fcm.googleapis.com/fcm/send/abc123',
+            'keys': {'p256dh': 'key1', 'auth': 'auth1'},
+        }
+        response = self.client.post(
+            self.save_url, json.dumps(payload), content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertTrue(data['created'])
+        self.assertTrue(
+            PushSubscription.objects.filter(user=self.user, endpoint=payload['endpoint']).exists()
+        )
+
+    def test_save_push_subscription_updates_existing(self):
+        endpoint = 'https://fcm.googleapis.com/fcm/send/abc123'
+        PushSubscription.objects.create(
+            user=self.user, endpoint=endpoint, p256dh='old', auth='old'
+        )
+        payload = {
+            'endpoint': endpoint,
+            'keys': {'p256dh': 'new_key', 'auth': 'new_auth'},
+        }
+        response = self.client.post(
+            self.save_url, json.dumps(payload), content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['created'])
+        sub = PushSubscription.objects.get(user=self.user, endpoint=endpoint)
+        self.assertEqual(sub.p256dh, 'new_key')
+        self.assertEqual(sub.auth, 'new_auth')
+
+    def test_save_push_subscription_missing_fields_returns_400(self):
+        for payload in (
+            {'endpoint': 'https://example.com', 'keys': {}},
+            {'endpoint': 'https://example.com', 'keys': {'p256dh': 'k'}},
+            {'keys': {'p256dh': 'k', 'auth': 'a'}},
+            'not-json',
+        ):
+            response = self.client.post(
+                self.save_url,
+                json.dumps(payload) if isinstance(payload, dict) else payload,
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 400, payload)
+
+    def test_save_push_subscription_unauthenticated_redirects(self):
+        self.client.logout()
+        response = self.client.post(
+            self.save_url,
+            json.dumps({'endpoint': 'x', 'keys': {'p256dh': 'k', 'auth': 'a'}}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_remove_push_subscription(self):
+        endpoint = 'https://fcm.googleapis.com/fcm/send/abc123'
+        PushSubscription.objects.create(
+            user=self.user, endpoint=endpoint, p256dh='k', auth='a'
+        )
+        response = self.client.post(
+            self.remove_url, json.dumps({'endpoint': endpoint}), content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertFalse(
+            PushSubscription.objects.filter(user=self.user, endpoint=endpoint).exists()
+        )
+
+    def test_remove_push_subscription_invalid_json(self):
+        response = self.client.post(
+            self.remove_url, 'not-json', content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_remove_push_subscription_unauthenticated_redirects(self):
+        self.client.logout()
+        response = self.client.post(
+            self.remove_url,
+            json.dumps({'endpoint': 'x'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 302)
+
+
+class ExerciseAutocompleteTests(TestCase):
+    def setUp(self):
+        Exercise.objects.all().delete()
+        self.ex1 = Exercise.objects.create(
+            name='Kettlebell Swing', description='x',
+            category='strength', difficulty='intermediate',
+            muscles_targeted='Glúteos, core',
+        )
+        self.ex2 = Exercise.objects.create(
+            name='Kettlebell Snatch', description='x',
+            category='strength', difficulty='advanced',
+            muscles_targeted='Hombros, espalda',
+        )
+        self.ex3 = Exercise.objects.create(
+            name='Goblet Squat', description='x',
+            category='strength', difficulty='beginner',
+            muscles_targeted='Glúteos, cuádriceps',
+        )
+        self.url = reverse('exercises:exercise_autocomplete')
+
+    def test_short_query_returns_empty(self):
+        response = self.client.get(self.url, {'q': 'k'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['suggestions'], [])
+
+    def test_autocomplete_by_name(self):
+        response = self.client.get(self.url, {'q': 'swing'})
+        suggestions = response.json()['suggestions']
+        self.assertEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0]['name'], 'Kettlebell Swing')
+        self.assertEqual(suggestions[0]['slug'], self.ex1.slug)
+        self.assertEqual(suggestions[0]['category'], 'Fuerza')
+        self.assertEqual(suggestions[0]['difficulty'], 'Intermedio')
+
+    def test_autocomplete_by_muscles(self):
+        response = self.client.get(self.url, {'q': 'glúteos'})
+        suggestions = response.json()['suggestions']
+        names = {s['name'] for s in suggestions}
+        self.assertIn('Kettlebell Swing', names)
+        self.assertIn('Goblet Squat', names)
+
+    def test_autocomplete_limit_8(self):
+        for i in range(10):
+            Exercise.objects.create(
+                name=f'Ejercicio test {i}', description='x',
+                category='strength', difficulty='beginner',
+            )
+        response = self.client.get(self.url, {'q': 'test'})
+        self.assertLessEqual(len(response.json()['suggestions']), 8)
+
+    def test_autocomplete_no_results(self):
+        response = self.client.get(self.url, {'q': 'zzz-no-existe'})
+        self.assertEqual(response.json()['suggestions'], [])
+
+
+class ExerciseFiltersTests(TestCase):
+    def setUp(self):
+        Exercise.objects.all().delete()
+        Exercise.objects.create(
+            name='Ex1', description='x', category='strength', difficulty='beginner',
+            muscles_targeted='Glúteos, core',
+        )
+        Exercise.objects.create(
+            name='Ex2', description='x', category='cardio', difficulty='intermediate',
+            muscles_targeted='Hombros\ncore',
+        )
+        Exercise.objects.create(
+            name='Ex3', description='x', category='flexibility', difficulty='advanced',
+            muscles_targeted='',
+        )
+        self.url = reverse('exercises:exercise_filters')
+
+    def test_filters_returns_muscles(self):
+        response = self.client.get(self.url)
+        data = response.json()
+        self.assertIn('Glúteos', data['muscles'])
+        self.assertIn('core', data['muscles'])
+        self.assertIn('Hombros', data['muscles'])
+        # Debe estar ordenado
+        self.assertEqual(data['muscles'], sorted(data['muscles']))
+
+    def test_filters_returns_categories_and_difficulties(self):
+        response = self.client.get(self.url)
+        data = response.json()
+        cat_keys = [c[0] for c in data['categories']]
+        diff_keys = [d[0] for d in data['difficulties']]
+        self.assertIn('strength', cat_keys)
+        self.assertIn('cardio', cat_keys)
+        self.assertIn('beginner', diff_keys)
+        self.assertIn('advanced', diff_keys)
+
+    def test_filters_exercises_without_muscles(self):
+        # Ex3 tiene muscles_targeted vacío, no debe aparecer ningún muscle vacío
+        response = self.client.get(self.url)
+        for muscle in response.json()['muscles']:
+            self.assertTrue(len(muscle) > 0)
+
+
+class WorkoutExportTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='exportuser', password='password123')
+        self.ex1 = Exercise.objects.create(
+            name='Swing Export', description='x',
+            category='strength', difficulty='beginner',
+        )
+        self.ex2 = Exercise.objects.create(
+            name='Squat Export', description='x',
+            category='strength', difficulty='beginner',
+        )
+        self.workout = Workout.objects.create(
+            title='Rutina Export', description='Para exportar',
+            difficulty='intermediate', estimated_duration=30,
+            created_by=self.user, is_public=True,
+        )
+        WorkoutExercise.objects.create(
+            workout=self.workout, exercise=self.ex1, order=1, sets=3, reps='15', notes='Sin pausa'
+        )
+        WorkoutExercise.objects.create(
+            workout=self.workout, exercise=self.ex2, order=2, sets=4, reps='12', notes=''
+        )
+        self.url = reverse('exercises:workout_export', kwargs={'slug': self.workout.slug})
+
+    def test_export_returns_workout_data(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['title'], 'Rutina Export')
+        self.assertEqual(data['description'], 'Para exportar')
+        self.assertEqual(data['difficulty'], 'intermediate')
+        self.assertEqual(data['duration'], 30)
+        self.assertEqual(data['slug'], self.workout.slug)
+        self.assertEqual(len(data['exercises']), 2)
+
+    def test_export_exercises_ordered(self):
+        data = self.client.get(self.url).json()
+        self.assertEqual(data['exercises'][0]['name'], 'Swing Export')
+        self.assertEqual(data['exercises'][0]['sets'], 3)
+        self.assertEqual(data['exercises'][0]['reps'], '15')
+        self.assertEqual(data['exercises'][0]['notes'], 'Sin pausa')
+        self.assertEqual(data['exercises'][1]['name'], 'Squat Export')
+        self.assertEqual(data['exercises'][1]['notes'], '')
+
+    def test_export_nonexistent_workout_returns_404(self):
+        url = reverse('exercises:workout_export', kwargs={'slug': 'no-existe'})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_export_private_workout_visible_to_owner(self):
+        self.workout.is_public = False
+        self.workout.save()
+        self.client.login(username='exportuser', password='password123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_export_private_workout_accessible_by_slug(self):
+        """workout_export usa get_object_or_404 sin filtro de visibilidad,
+        así que cualquier usuario con el slug puede acceder."""
+        self.workout.is_public = False
+        self.workout.save()
+        other = User.objects.create_user(username='other', password='password123')
+        self.client.login(username='other', password='password123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['title'], 'Rutina Export')
+
+
+class UserProfileFocusTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='focususer', password='password123')
+
+    def test_focus_maps_goals_correctly(self):
+        expected = {
+            'strength': 'strength',
+            'fat_loss': 'cardio',
+            'mobility': 'flexibility',
+            'general': 'mix',
+        }
+        for goal, expected_focus in expected.items():
+            profile = UserProfile(user=self.user, goal=goal)
+            self.assertEqual(profile.focus, expected_focus, f'goal={goal}')
+
+    def test_focus_defaults_to_mix_for_unknown(self):
+        profile = UserProfile(user=self.user)
+        profile.goal = 'unknown_goal'
+        self.assertEqual(profile.focus, 'mix')
