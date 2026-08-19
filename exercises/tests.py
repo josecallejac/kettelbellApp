@@ -1,5 +1,7 @@
 import json
+from unittest.mock import patch
 
+from django.conf import settings as django_settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import Client, TestCase
@@ -563,6 +565,70 @@ class DashboardTests(TestCase):
         self.assertEqual(response.context['total_minutes'], 0)
         self.assertIsNone(response.context['avg_rpe'])
 
+    def test_dashboard_rpe_chart(self):
+        WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=7)
+        WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=9)
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        rpe_chart = response.context['rpe_chart']
+        self.assertEqual(len(rpe_chart), 8)
+        # La última semana debería tener promedio 8.0
+        self.assertEqual(rpe_chart[-1]['avg'], 8.0)
+
+    def test_dashboard_personal_records(self):
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=45,
+            kettlebell_weight=20, rpe=8,
+        )
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, duration_minutes=30,
+            kettlebell_weight=16, rpe=6,
+        )
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        prs = response.context['personal_records']
+        self.assertEqual(prs['max_weight'], 20.0)
+        self.assertEqual(prs['longest_session'], 45)
+        self.assertEqual(prs['best_week'], 2)
+
+    def test_dashboard_personal_records_empty(self):
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        prs = response.context['personal_records']
+        self.assertNotIn('max_weight', prs)
+        self.assertNotIn('longest_session', prs)
+        self.assertEqual(prs['best_streak'], 0)
+        self.assertEqual(prs['best_week'], 0)
+
+    def test_dashboard_suggested_weight_from_history(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, kettlebell_weight=16,
+        )
+        # Crear el segundo log con completed_at explícito para asegurar orden
+        log2 = WorkoutLog.objects.create(
+            user=self.user, workout=self.mine, kettlebell_weight=20,
+        )
+        WorkoutLog.objects.filter(pk=log2.pk).update(completed_at=now + timedelta(seconds=1))
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        # Debe sugerir el último peso usado (20)
+        self.assertEqual(response.context['suggested_weight'], 20.0)
+
+    def test_dashboard_suggested_weight_from_profile(self):
+        UserProfile.objects.create(user=self.user, level='intermediate', available_weights='8, 12, 16')
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        # Sin historial, fallback al perfil: intermediate -> index 1 -> 12
+        self.assertEqual(response.context['suggested_weight'], 12.0)
+
+    def test_dashboard_suggested_weight_none_without_data(self):
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+        self.assertIsNone(response.context['suggested_weight'])
+
 
 class WorkoutLogApiTests(TestCase):
     def setUp(self):
@@ -763,6 +829,33 @@ class PushSubscriptionTests(TestCase):
             json.dumps({'endpoint': 'x'}),
             content_type='application/json',
         )
+        self.assertEqual(response.status_code, 302)
+
+    @patch('pywebpush.webpush')
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_test_notification(self, mock_webpush):
+        PushSubscription.objects.create(
+            user=self.user, endpoint='https://example.com/push',
+            p256dh='k', auth='a',
+        )
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertEqual(response.json()['sent'], 1)
+        mock_webpush.assert_called_once()
+
+    @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
+    def test_send_test_notification_no_subscriptions(self):
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('No tienes suscripciones', response.json()['message'])
+
+    def test_send_test_notification_unauthenticated(self):
+        self.client.logout()
+        test_url = reverse('exercises:push_subscription_test')
+        response = self.client.post(test_url)
         self.assertEqual(response.status_code, 302)
 
 

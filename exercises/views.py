@@ -11,7 +11,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Max, Q, Sum
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -473,6 +473,104 @@ def build_weekly_chart(log_dates, today):
     return weeks
 
 
+def build_rpe_chart(logs, today):
+    """RPE promedio por semana de las últimas 8 semanas."""
+    this_monday = today - timedelta(days=today.weekday())
+    weeks = []
+    for offset in range(WEEKLY_CHART_WEEKS - 1, -1, -1):
+        start = this_monday - timedelta(weeks=offset)
+        end = start + timedelta(days=7)
+        week_rpes = list(
+            logs.filter(
+                completed_at__date__gte=start,
+                completed_at__date__lt=end,
+                rpe__isnull=False,
+            ).values_list('rpe', flat=True)
+        )
+        avg = round(sum(week_rpes) / len(week_rpes), 1) if week_rpes else None
+        weeks.append({'label': start.strftime('%d/%m'), 'avg': avg})
+    # Calcular pct relativo a escala 1-10 para la barra
+    for week in weeks:
+        week['pct'] = round(week['avg'] * 10) if week['avg'] else 0
+    return weeks
+
+
+def compute_personal_records(logs, log_dates, today):
+    """Récords personales del usuario."""
+    prs = {}
+
+    # Peso más alto usado
+    max_weight = logs.filter(kettlebell_weight__isnull=False).aggregate(
+        max_w=Max('kettlebell_weight')
+    )['max_w']
+    if max_weight is not None:
+        prs['max_weight'] = float(max_weight)
+
+    # Racha más larga (no solo la actual)
+    prs['best_streak'] = _compute_best_streak(log_dates)
+
+    # Mejor semana (más sesiones)
+    prs['best_week'] = _compute_best_week(log_dates)
+
+    # Sesión más larga
+    max_duration = logs.filter(duration_minutes__isnull=False).aggregate(
+        max_d=Max('duration_minutes')
+    )['max_d']
+    if max_duration is not None:
+        prs['longest_session'] = max_duration
+
+    return prs
+
+
+def _compute_best_streak(log_dates):
+    """La racha más larga de días consecutivos con al menos una sesión."""
+    if not log_dates:
+        return 0
+    sorted_dates = sorted(set(log_dates))
+    best = 1
+    current = 1
+    for i in range(1, len(sorted_dates)):
+        if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
+            current += 1
+            best = max(best, current)
+        else:
+            current = 1
+    return best
+
+
+def _compute_best_week(log_dates):
+    """La semana (lun-dom) con más sesiones."""
+    if not log_dates:
+        return 0
+    week_counts = {}
+    for d in log_dates:
+        monday = d - timedelta(days=d.weekday())
+        week_counts[monday] = week_counts.get(monday, 0) + 1
+    return max(week_counts.values())
+
+
+def compute_suggested_weight(user):
+    """Peso sugerido basado en el historial real de entrenamientos."""
+    last_weight = (
+        WorkoutLog.objects.filter(user=user, kettlebell_weight__isnull=False)
+        .order_by('-completed_at')
+        .values_list('kettlebell_weight', flat=True)
+        .first()
+    )
+    if last_weight is not None:
+        return float(last_weight)
+
+    # Fallback: usar el perfil
+    profile = UserProfile.objects.filter(user=user).first()
+    if profile:
+        weights = profile.weights_list()
+        if weights:
+            level_index = {'beginner': 0, 'intermediate': len(weights) // 2, 'advanced': len(weights) - 1}
+            idx = level_index.get(profile.level, len(weights) // 2)
+            return weights[idx]
+    return None
+
+
 @login_required
 def dashboard(request):
     logs = WorkoutLog.objects.filter(user=request.user)
@@ -497,6 +595,9 @@ def dashboard(request):
         'total_minutes': stats['total_minutes'] or 0,
         'avg_rpe': round(stats['avg_rpe'], 1) if stats['avg_rpe'] is not None else None,
         'weekly_chart': build_weekly_chart(log_dates, today),
+        'rpe_chart': build_rpe_chart(logs, today),
+        'personal_records': compute_personal_records(logs, log_dates, today),
+        'suggested_weight': compute_suggested_weight(request.user),
         'vapid_public_key': django_settings.VAPID_PUBLIC_KEY,
     }
     return render(request, 'exercises/dashboard.html', context)
@@ -719,6 +820,51 @@ def remove_push_subscription(request):
         return JsonResponse({'status': 'success'})
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'JSON invalido'}, status=400)
+
+
+@login_required
+@require_POST
+@rate_limit('push-test', max_requests=3, window_seconds=60)
+def send_test_notification(request):
+    """Envía una notificación de prueba al usuario actual."""
+    from pywebpush import WebPushException, webpush
+    import json as _json
+
+    if not django_settings.VAPID_PRIVATE_KEY:
+        return JsonResponse(
+            {'status': 'error', 'message': 'VAPID no configurado'}, status=500
+        )
+
+    subscriptions = PushSubscription.objects.filter(user=request.user)
+    if not subscriptions.exists():
+        return JsonResponse(
+            {'status': 'error', 'message': 'No tienes suscripciones push activas'}, status=400
+        )
+
+    payload = _json.dumps({
+        'title': '¡KettleBell Pro! 🔔',
+        'body': 'Las notificaciones están funcionando correctamente.',
+        'url': '/dashboard/',
+    })
+
+    vapid_claims = {'sub': f'mailto:{django_settings.VAPID_ADMIN_EMAIL}'}
+    sent = 0
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
+                },
+                data=payload,
+                vapid_private_key=django_settings.VAPID_PRIVATE_KEY,
+                vapid_claims=vapid_claims,
+            )
+            sent += 1
+        except WebPushException:
+            pass
+
+    return JsonResponse({'status': 'success', 'sent': sent})
 
 
 @rate_limit('autocomplete', max_requests=60, window_seconds=60)

@@ -19,6 +19,7 @@
     if (subscribed) {
       banner.style.display = 'flex';
       btn.textContent = '🔕 Desactivar notificaciones';
+      document.getElementById('push-test-btn').style.display = '';
     } else if (Notification.permission !== 'denied') {
       banner.style.display = 'flex';
       btn.textContent = '🔔 Activar notificaciones';
@@ -33,10 +34,33 @@
     const nowSubscribed = await KBNotifications.toggle();
     if (nowSubscribed) {
       btn.textContent = '🔕 Desactivar notificaciones';
+      document.getElementById('push-test-btn').style.display = '';
     } else {
       btn.textContent = '🔔 Activar notificaciones';
+      document.getElementById('push-test-btn').style.display = 'none';
     }
     btn.disabled = false;
+  }
+
+  async function handlePushTest() {
+    const btn = document.getElementById('push-test-btn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try {
+      const resp = await fetch('{% url "exercises:push_subscription_test" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'},
+      });
+      const data = await resp.json();
+      if (data.status === 'success') {
+        btn.textContent = '✅ Enviada';
+      } else {
+        btn.textContent = '❌ ' + (data.message || 'Error');
+      }
+    } catch {
+      btn.textContent = '❌ Error de red';
+    }
+    setTimeout(() => { btn.textContent = 'Enviar prueba'; btn.disabled = false; }, 3000);
   }
 </script>
 {% endblock %}
@@ -64,9 +88,14 @@
                 <h2>🔔 Notificaciones de entrenamiento</h2>
                 <p>Recibe recordatorios para mantener tu racha activa.</p>
             </div>
-            <button class="btn btn-primary" id="push-toggle-btn" onclick="handlePushToggle()">
-                Activar notificaciones
-            </button>
+            <div class="push-actions">
+                <button class="btn btn-primary" id="push-toggle-btn" onclick="handlePushToggle()">
+                    Activar notificaciones
+                </button>
+                <button class="btn btn-outline btn-sm" id="push-test-btn" onclick="handlePushTest()" style="display:none;">
+                    Enviar prueba
+                </button>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -105,6 +134,15 @@
                     <span class="stat-label">Esfuerzo promedio (RPE)</span>
                 </div>
             </div>
+            {% if suggested_weight %}
+            <div class="stat-card">
+                <span class="stat-icon">⚖️</span>
+                <div class="stat-info">
+                    <span class="stat-value">{{ suggested_weight|floatformat:0 }} kg</span>
+                    <span class="stat-label">Peso sugerido</span>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Sesiones por semana -->
@@ -120,6 +158,65 @@
                 {% endfor %}
             </div>
         </div>
+
+        <!-- RPE por semana -->
+        <div class="weekly-chart-section">
+            <h2 class="column-title">Esfuerzo (RPE) por semana</h2>
+            <div class="weekly-chart rpe-chart" role="img" aria-label="RPE promedio por semana de las últimas 8 semanas">
+                {% for week in rpe_chart %}
+                <div class="weekly-bar-slot">
+                    <span class="weekly-count">{% if week.avg %}{{ week.avg }}{% else %}—{% endif %}</span>
+                    <div class="weekly-bar rpe-bar" style="height: {% if week.pct %}{{ week.pct }}%{% else %}2px{% endif %};"></div>
+                    <span class="weekly-label">{{ week.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Récords personales -->
+        {% if personal_records %}
+        <div class="personal-records-section">
+            <h2 class="column-title">🏆 Récords Personales</h2>
+            <div class="stats-grid">
+                {% if personal_records.max_weight %}
+                <div class="stat-card">
+                    <span class="stat-icon">🏋️</span>
+                    <div class="stat-info">
+                        <span class="stat-value">{{ personal_records.max_weight|floatformat:0 }} kg</span>
+                        <span class="stat-label">Peso máximo usado</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if personal_records.best_streak %}
+                <div class="stat-card">
+                    <span class="stat-icon">🔥</span>
+                    <div class="stat-info">
+                        <span class="stat-value">{{ personal_records.best_streak }}</span>
+                        <span class="stat-label">Mejor racha (días)</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if personal_records.best_week %}
+                <div class="stat-card">
+                    <span class="stat-icon">📅</span>
+                    <div class="stat-info">
+                        <span class="stat-value">{{ personal_records.best_week }}</span>
+                        <span class="stat-label">Mejor semana (sesiones)</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if personal_records.longest_session %}
+                <div class="stat-card">
+                    <span class="stat-icon">⏱️</span>
+                    <div class="stat-info">
+                        <span class="stat-value">{{ personal_records.longest_session }} min</span>
+                        <span class="stat-label">Sesión más larga</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Mis Rutinas -->
         <div class="my-workouts-section">

@@ -34,5 +34,6 @@ urlpatterns = [
     path('api/log-workout/', views.log_workout, name='log_workout'),
     path('api/push-subscription/', views.save_push_subscription, name='push_subscription'),
     path('api/push-subscription/remove/', views.remove_push_subscription, name='push_subscription_remove'),
+    path('api/push-subscription/test/', views.send_test_notification, name='push_subscription_test'),
     path('api/workout-export/<slug:slug>/', views.workout_export, name='workout_export'),
 ]
