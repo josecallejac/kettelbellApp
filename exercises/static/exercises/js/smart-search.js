@@ -1,8 +1,7 @@
 /**
  * KettleBell Pro - Smart Search
  *
- * Autocomplete suggestions, combined filters (category, difficulty, muscle),
- * and debounced search input.
+ * Autocomplete suggestions and debounced search input.
  */
 
 (function () {
@@ -22,46 +21,12 @@
   dropdown.style.display = 'none';
   searchInput.parentNode.insertBefore(dropdown, searchInput.nextSibling);
 
-  /* ---- Create filter chips container ---- */
-  var filtersContainer = document.createElement('div');
-  filtersContainer.className = 'search-filters';
-  searchForm.parentNode.insertBefore(filtersContainer, searchForm.nextSibling);
-
-  /* ---- CSRF helper ---- */
-  function getCSRF() {
-    var cookie = document.cookie.split(';').find(function (c) { return c.trim().startsWith('csrftoken='); });
-    return cookie ? cookie.split('=')[1] : '';
-  }
-
   /* ---- Debounce ---- */
   function debounce(fn, ms) {
     return function () {
       clearTimeout(autocompleteTimer);
       autocompleteTimer = setTimeout(fn, ms);
     };
-  }
-
-  /* ---- Build URL with current filters ---- */
-  function buildFilterUrl(params) {
-    var url = new URL(window.location.href.split('?')[0]);
-    var current = new URLSearchParams(window.location.search);
-
-    /* Preserve existing params, override with new ones */
-    Object.keys(params).forEach(function (key) {
-      if (params[key]) {
-        url.searchParams.set(key, params[key]);
-      } else {
-        url.searchParams.delete(key);
-      }
-    });
-
-    /* Preserve q if present */
-    var q = current.get('q');
-    if (q && !params.hasOwnProperty('q')) {
-      url.searchParams.set('q', q);
-    }
-
-    return url.toString();
   }
 
   /* ---- Fetch autocomplete suggestions ---- */
@@ -107,63 +72,6 @@
     return div.innerHTML;
   }
 
-  /* ---- Fetch filter options and render chips ---- */
-  function initFilters() {
-    fetch('/api/exercises/filters/')
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        renderFilterChips(data);
-      })
-      .catch(function () {});
-  }
-
-  function renderFilterChips(data) {
-    var urlParams = new URLSearchParams(window.location.search);
-    var activeCategory = urlParams.get('category') || '';
-    var activeDifficulty = urlParams.get('difficulty') || '';
-    var activeMuscle = urlParams.get('muscle') || '';
-
-    var html = '';
-
-    /* Category chips */
-    html += '<div class="filter-group">';
-    html += '<span class="filter-label">Categoría:</span>';
-    html += '<div class="filter-chips">';
-    html += '<a href="' + buildFilterUrl({ category: '' }) + '" class="filter-chip' + (!activeCategory ? ' active' : '') + '">Todas</a>';
-    data.categories.forEach(function (cat) {
-      var isActive = activeCategory === cat[0];
-      html += '<a href="' + buildFilterUrl({ category: cat[0] }) + '" class="filter-chip' + (isActive ? ' active' : '') + '">' + escapeHtml(cat[1]) + '</a>';
-    });
-    html += '</div></div>';
-
-    /* Difficulty chips */
-    html += '<div class="filter-group">';
-    html += '<span class="filter-label">Nivel:</span>';
-    html += '<div class="filter-chips">';
-    html += '<a href="' + buildFilterUrl({ difficulty: '' }) + '" class="filter-chip' + (!activeDifficulty ? ' active' : '') + '">Todos</a>';
-    data.difficulties.forEach(function (diff) {
-      var isActive = activeDifficulty === diff[0];
-      html += '<a href="' + buildFilterUrl({ difficulty: diff[0] }) + '" class="filter-chip' + (isActive ? ' active' : '') + '">' + escapeHtml(diff[1]) + '</a>';
-    });
-    html += '</div></div>';
-
-    /* Muscle chips (top 8) */
-    if (data.muscles.length > 0) {
-      html += '<div class="filter-group">';
-      html += '<span class="filter-label">Músculo:</span>';
-      html += '<div class="filter-chips">';
-      html += '<a href="' + buildFilterUrl({ muscle: '' }) + '" class="filter-chip' + (!activeMuscle ? ' active' : '') + '">Todos</a>';
-      var topMuscles = data.muscles.slice(0, 10);
-      topMuscles.forEach(function (m) {
-        var isActive = activeMuscle === m;
-        html += '<a href="' + buildFilterUrl({ muscle: m }) + '" class="filter-chip' + (isActive ? ' active' : '') + '">' + escapeHtml(m) + '</a>';
-      });
-      html += '</div></div>';
-    }
-
-    filtersContainer.innerHTML = html;
-  }
-
   /* ---- Event listeners ---- */
   searchInput.addEventListener('input', debounce(function () {
     fetchSuggestions(searchInput.value.trim());
@@ -189,6 +97,4 @@
     }
   });
 
-  /* ---- Init ---- */
-  initFilters();
 })();

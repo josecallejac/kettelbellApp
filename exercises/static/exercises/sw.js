@@ -1,11 +1,11 @@
 /* KettleBell Pro Service Worker */
-const CACHE_NAME = 'kb-pro-v1';
-const STATIC_CACHE = 'kb-static-v1';
+const CACHE_NAME = 'kb-pro-v2';
+const STATIC_CACHE = 'kb-static-v2';
 
 /* Core assets to pre-cache on install */
 const PRECACHE_URLS = [
   '/',
-  '/static/exercises/css/styles.css',
+  '/static/exercises/css/styles.css?v=20260819-detail',
   '/static/exercises/js/favorites.js',
   '/static/exercises/img/favicon.svg',
   '/static/exercises/img/hero-kettlebell.png',

@@ -1,12 +1,15 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}{{ exercise.name }} - KettleBell Pro{% endblock %}
 
 {% block content %}
+<!-- Reading progress bar -->
+<div class="reading-progress" id="reading-progress"></div>
+
 <section class="exercise-detail-section">
   <div class="container">
-    <div class="detail-header pro-detail-header">
+    <div class="detail-header pro-detail-header scroll-reveal">
       <a href="{% url 'exercises:landing' %}" class="back-link">
         <span class="back-icon">&larr;</span> Volver a la biblioteca
       </a>
@@ -15,12 +18,31 @@
       <p class="detail-lede">{{ exercise.description }}</p>
     </div>
 
+    <!-- Mobile TOC pills -->
+    <nav class="toc-pills" aria-label="Secciones del ejercicio">
+      <a href="#hero" class="toc-pill active" data-section="hero">📷 Imagen</a>
+      <a href="#coaching" class="toc-pill" data-section="coaching">📋 Coaching</a>
+      <a href="#instructions" class="toc-pill" data-section="instructions">📝 Pasos</a>
+      <a href="#quality" class="toc-pill" data-section="quality">✅ Control</a>
+      {% if exercise.muscles_targeted or exercise.common_mistakes or exercise.precautions %}
+      <a href="#anatomy" class="toc-pill" data-section="anatomy">💪 Anatomia</a>
+      {% endif %}
+      {% if exercise.benefits %}
+      <a href="#benefits" class="toc-pill" data-section="benefits">⭐ Beneficios</a>
+      {% endif %}
+      {% if variations_list or progressions_list %}
+      <a href="#progression" class="toc-pill" data-section="progression">🔄 Adaptaciones</a>
+      {% endif %}
+    </nav>
+
     <div class="detail-grid">
       <div class="detail-main">
-        <div class="movement-hero-card">
+
+        <!-- HERO CARD -->
+        <div class="movement-hero-card scroll-reveal" id="hero">
           <div class="detail-image-wrapper coach-image-wrapper">
             {% if exercise.image %}
-            <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="detail-image" />
+            <img src="{{ exercise.image_url }}" alt="{{ exercise.name }}" class="detail-image" fetchpriority="high" />
             {% else %}
             <div class="technique-illustration category-{{ exercise.category }}">
               <div class="floor-line"></div>
@@ -57,27 +79,29 @@
 
           <div class="movement-snapshot">
             <div class="snapshot-item">
-              <span class="snapshot-label">Objetivo</span>
+              <span class="snapshot-label"><span class="snapshot-icon">🎯</span> Objetivo</span>
               <strong>{{ exercise.get_category_display }}</strong>
             </div>
             <div class="snapshot-item">
-              <span class="snapshot-label">Nivel</span>
+              <span class="snapshot-label"><span class="snapshot-icon">📊</span> Nivel</span>
               <strong>{{ exercise.get_difficulty_display }}</strong>
             </div>
             <div class="snapshot-item">
-              <span class="snapshot-label">Duracion</span>
+              <span class="snapshot-label"><span class="snapshot-icon">⏱️</span> Duracion</span>
               <strong>{% if exercise.duration_minutes %}{{ exercise.duration_minutes }} min{% else %}Variable{% endif %}</strong>
             </div>
             <div class="snapshot-item">
-              <span class="snapshot-label">Equipo</span>
+              <span class="snapshot-label"><span class="snapshot-icon">🏋️</span> Equipo</span>
               <strong>{% if exercise.equipment %}{{ exercise.equipment }}{% else %}Kettlebell{% endif %}</strong>
             </div>
           </div>
         </div>
 
-        <div class="coach-card-grid">
+        <!-- COACHING CARDS -->
+        <div class="coach-card-grid scroll-reveal" id="coaching">
           {% for card in coaching_cards %}
-          <article class="coach-card">
+          <article class="coach-card scroll-reveal-stagger">
+            <div class="coach-card-icon">{{ card.icon }}</div>
             <span class="coach-kicker">{{ card.kicker }}</span>
             <h2>{{ card.title }}</h2>
             <ul class="coach-list">
@@ -89,7 +113,8 @@
           {% endfor %}
         </div>
 
-        <div class="detail-info-card instructions-card">
+        <!-- STEP BY STEP -->
+        <div class="detail-info-card instructions-card scroll-reveal" id="instructions">
           <div class="section-heading-row">
             <div>
               <span class="detail-kicker">Paso a paso</span>
@@ -100,7 +125,7 @@
           {% if instruction_steps %}
           <ol class="numbered-steps">
             {% for step in instruction_steps %}
-            <li><span>{{ step }}</span></li>
+            <li class="scroll-reveal-stagger"><span>{{ step }}</span></li>
             {% endfor %}
           </ol>
           {% else %}
@@ -108,7 +133,8 @@
           {% endif %}
         </div>
 
-        <div class="detail-info-card quality-card">
+        <!-- QUALITY SIGNALS -->
+        <div class="detail-info-card quality-card scroll-reveal" id="quality">
           <div class="section-heading-row">
             <div>
               <span class="detail-kicker">Auto-chequeo</span>
@@ -116,16 +142,18 @@
             </div>
           </div>
           <div class="quality-grid">
-            <div class="quality-item"><strong>Respiracion</strong><span>Exhala en el esfuerzo y no bloquees el aire por demasiado tiempo.</span></div>
-            <div class="quality-item"><strong>Columna</strong><span>Manten una posicion neutra; si se redondea, baja peso o rango.</span></div>
-            <div class="quality-item"><strong>Control</strong><span>La repeticion termina sin perder equilibrio ni tension corporal.</span></div>
+            <div class="quality-item scroll-reveal-stagger"><strong>🫁 Respiracion</strong><span>Exhala en el esfuerzo y no bloquees el aire por demasiado tiempo.</span></div>
+            <div class="quality-item scroll-reveal-stagger"><strong>🦴 Columna</strong><span>Manten una posicion neutra; si se redondea, baja peso o rango.</span></div>
+            <div class="quality-item scroll-reveal-stagger"><strong>⚖️ Control</strong><span>La repeticion termina sin perder equilibrio ni tension corporal.</span></div>
           </div>
         </div>
 
+        <!-- MUSCLES / MISTAKES / PRECAUTIONS -->
         {% if exercise.muscles_targeted or exercise.common_mistakes or exercise.precautions %}
-        <div class="coach-card-grid coach-card-grid-three">
+        <div class="coach-card-grid coach-card-grid-three scroll-reveal" id="anatomy">
           {% if muscles_targeted_list %}
-          <article class="coach-card muscle-card">
+          <article class="coach-card muscle-card scroll-reveal-stagger">
+            <div class="coach-card-icon">💪</div>
             <span class="coach-kicker">Anatomia</span>
             <h2>Musculos trabajados</h2>
             <ul class="coach-list">
@@ -135,7 +163,8 @@
           {% endif %}
 
           {% if common_mistakes_list %}
-          <article class="coach-card danger-card">
+          <article class="coach-card danger-card scroll-reveal-stagger">
+            <div class="coach-card-icon">⚠️</div>
             <span class="coach-kicker">Correccion</span>
             <h2>Errores comunes</h2>
             <ul class="coach-list">
@@ -145,7 +174,8 @@
           {% endif %}
 
           {% if precautions_list %}
-          <article class="coach-card warning-card">
+          <article class="coach-card warning-card scroll-reveal-stagger">
+            <div class="coach-card-icon">🛡️</div>
             <span class="coach-kicker">Seguridad</span>
             <h2>Precauciones</h2>
             <ul class="coach-list">
@@ -156,16 +186,18 @@
         </div>
         {% endif %}
 
+        <!-- BENEFITS -->
         {% if exercise.benefits %}
-        <div class="detail-info-card benefits-long-card">
+        <div class="detail-info-card benefits-long-card scroll-reveal" id="benefits">
           <span class="detail-kicker">Por que sirve</span>
           <h2 class="info-title">Beneficios</h2>
           <div class="info-text">{{ exercise.benefits|linebreaks }}</div>
         </div>
         {% endif %}
 
+        <!-- VARIATIONS & PROGRESSIONS -->
         {% if variations_list or progressions_list %}
-        <div class="detail-info-card progression-card">
+        <div class="detail-info-card progression-card scroll-reveal" id="progression">
           <div class="section-heading-row">
             <div>
               <span class="detail-kicker">Adaptaciones</span>
@@ -175,7 +207,7 @@
           <div class="split-detail-grid">
             {% if variations_list %}
             <div>
-              <h3>Variaciones</h3>
+              <h3>🔀 Variaciones</h3>
               <ul class="coach-list compact-list">
                 {% for item in variations_list %}<li>{{ item }}</li>{% endfor %}
               </ul>
@@ -183,7 +215,7 @@
             {% endif %}
             {% if progressions_list %}
             <div>
-              <h3>Progresiones y regresiones</h3>
+              <h3>📈 Progresiones y regresiones</h3>
               <ul class="coach-list compact-list">
                 {% for item in progressions_list %}<li>{{ item }}</li>{% endfor %}
               </ul>
@@ -195,7 +227,28 @@
       </div>
 
       <aside class="detail-sidebar">
-        <div class="stats-card coach-sidebar-card">
+        <!-- Floating TOC — desktop -->
+        <nav class="floating-toc" aria-label="Secciones del ejercicio">
+          <div class="floating-toc-title">Contenido</div>
+          <ul class="toc-list">
+            <li><a href="#hero" class="toc-link active" data-section="hero"><span class="toc-icon">📷</span> Imagen</a></li>
+            <li><a href="#coaching" class="toc-link" data-section="coaching"><span class="toc-icon">📋</span> Coaching</a></li>
+            <li><a href="#instructions" class="toc-link" data-section="instructions"><span class="toc-icon">📝</span> Pasos</a></li>
+            <li><a href="#quality" class="toc-link" data-section="quality"><span class="toc-icon">✅</span> Control</a></li>
+            {% if exercise.muscles_targeted or exercise.common_mistakes or exercise.precautions %}
+            <li><a href="#anatomy" class="toc-link" data-section="anatomy"><span class="toc-icon">💪</span> Anatomia</a></li>
+            {% endif %}
+            {% if exercise.benefits %}
+            <li><a href="#benefits" class="toc-link" data-section="benefits"><span class="toc-icon">⭐</span> Beneficios</a></li>
+            {% endif %}
+            {% if variations_list or progressions_list %}
+            <li><a href="#progression" class="toc-link" data-section="progression"><span class="toc-icon">🔄</span> Adaptaciones</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+
+        <!-- Quick stats -->
+        <div class="stats-card coach-sidebar-card scroll-reveal">
           <h3 class="stats-title">Ficha rapida</h3>
           <div class="stat-item"><span class="stat-label">Duracion:</span><span class="stat-value">{% if exercise.duration_minutes %}{{ exercise.duration_minutes }} min{% else %}N/A{% endif %}</span></div>
           <div class="stat-item"><span class="stat-label">Calorias:</span><span class="stat-value">{% if exercise.calories_burned %}{{ exercise.calories_burned }} kcal{% else %}N/A{% endif %}</span></div>
@@ -203,19 +256,45 @@
           <div class="stat-item"><span class="stat-label">Categoria:</span><span class="stat-value">{{ exercise.get_category_display }}</span></div>
         </div>
 
-        <div class="stats-card mini-coach-card">
+        <!-- Mini routine -->
+        <div class="stats-card mini-coach-card scroll-reveal">
           <h3 class="stats-title">Mini rutina sugerida</h3>
-          <p class="benefits-text">Haz 3 series, descansa 45-75 segundos y prioriza repeticiones limpias antes de subir el peso.</p>
+          <div class="mini-routine-steps">
+            <div class="mini-routine-step"><span class="mini-routine-icon">🔥</span> 3 series</div>
+            <div class="mini-routine-step"><span class="mini-routine-icon">⏸️</span> Descansa 45-75 seg</div>
+            <div class="mini-routine-step"><span class="mini-routine-icon">🎯</span> Repeticiones limpias primero</div>
+          </div>
         </div>
 
+        <!-- Video -->
         {% if exercise.video_url %}
-        <div class="video-cta-card">
+        <div class="video-cta-card scroll-reveal">
           <h3 class="stats-title">Video explicativo</h3>
           <a id="video-link" href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" class="video-thumb">
             <img id="video-thumb" data-video-url="{{ exercise.video_url }}" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Vista previa del video" />
             <span class="video-play">&#9658;</span>
           </a>
           <a href="{{ exercise.video_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-full">Abrir video</a>
+        </div>
+        {% endif %}
+
+        <!-- Related exercises -->
+        {% if related_exercises %}
+        <div class="stats-card scroll-reveal">
+          <h3 class="stats-title">Ejercicios relacionados</h3>
+          <div class="related-list">
+            {% for rel in related_exercises %}
+            <a href="{% url 'exercises:detail' rel.slug %}" class="related-card">
+              {% if rel.image %}
+              <img src="{{ rel.image_url }}" alt="{{ rel.name }}" class="related-thumb" loading="lazy" />
+              {% endif %}
+              <div>
+                <div class="related-name">{{ rel.name }}</div>
+                <div class="related-meta">{{ rel.get_difficulty_display }} · {{ rel.get_category_display }}</div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
         </div>
         {% endif %}
       </aside>
@@ -226,5 +305,6 @@
 {% block extra_js %}
 <script src="{% static 'exercises/js/favorites.js' %}"></script>
 <script src="{% static 'exercises/js/youtube-thumb.js' %}"></script>
+<script src="{% static 'exercises/js/exercise-detail.js' %}?v=20260819-detail"></script>
 {% endblock %}
 {% endblock %}

@@ -354,6 +354,7 @@ def exercise_detail(request, slug):
         {
             'title': 'Antes de partir',
             'kicker': 'Setup',
+            'icon': '⚙️',
             'items': setup_tips or [
                 'Ubica la kettlebell cerca del cuerpo y crea tension en el core.',
                 'Mantiene pies firmes, hombros abajo y columna neutra.',
@@ -362,6 +363,7 @@ def exercise_detail(request, slug):
         {
             'title': 'Durante el movimiento',
             'kicker': 'Ejecucion',
+            'icon': '🏃',
             'items': instruction_steps[:4] or [
                 'Mueve la pesa con control, sin perder la postura.',
                 'Respira de forma estable y evita acelerar si la tecnica se rompe.',
@@ -370,6 +372,7 @@ def exercise_detail(request, slug):
         {
             'title': 'Para saber si va bien',
             'kicker': 'Control',
+            'icon': '✅',
             'items': [
                 'La kettlebell viaja cerca del cuerpo cuando corresponde.',
                 'No aparece dolor punzante en espalda, hombros, munecas o rodillas.',
@@ -377,6 +380,11 @@ def exercise_detail(request, slug):
             ],
         },
     ]
+
+    # Related exercises: same category, excluding current
+    related_exercises = Exercise.objects.filter(
+        category=exercise.category
+    ).exclude(id=exercise.id).order_by('?')[:3]
 
     context = {
         'exercise': exercise,
@@ -389,6 +397,7 @@ def exercise_detail(request, slug):
         'muscles_targeted_list': muscles_targeted,
         'variations_list': variations,
         'coaching_cards': coaching_cards,
+        'related_exercises': related_exercises,
     }
     return render(request, 'exercises/detail.html', context)
 
