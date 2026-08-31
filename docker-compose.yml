@@ -1,6 +1,9 @@
 services:
   web:
     container_name: kettlebell_web
+    mem_limit: 512m
+    pids_limit: 256
+    restart: unless-stopped
     build: .
     command: gunicorn kettelbell.wsgi:application --bind 0.0.0.0:8000 --workers 3
     ports:
@@ -28,6 +31,9 @@ services:
 
   db:
     container_name: kettlebell_postgres
+    mem_limit: 512m
+    pids_limit: 256
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
@@ -45,6 +51,9 @@ services:
 
   adminer:
     container_name: kettlebell_adminer
+    mem_limit: 256m
+    pids_limit: 128
+    restart: unless-stopped
     image: adminer:4
     ports:
       - "8081:8080"
