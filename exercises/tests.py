@@ -6,6 +6,7 @@ from unittest.mock import patch
 from django.conf import settings as django_settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.templatetags.static import static
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -152,7 +153,11 @@ class ExerciseModelTests(TestCase):
             name='Con imagen', description='x', category='strength', difficulty='beginner',
             image='kettlebell_swing.jpg',
         )
-        self.assertEqual(exercise.image_url, '/static/exercises/img/catalog/kettlebell_swing.jpg')
+        # The production manifest adds a content hash; development storage does not.
+        self.assertEqual(
+            exercise.image_url,
+            static('exercises/img/catalog/kettlebell_swing.jpg'),
+        )
 
     def test_image_url_empty_when_no_image(self):
         exercise = Exercise.objects.create(

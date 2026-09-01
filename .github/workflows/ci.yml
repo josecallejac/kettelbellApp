@@ -103,5 +103,8 @@ jobs:
       - name: Aplicar migraciones PostgreSQL
         run: python manage.py migrate --noinput
 
+      - name: Preparar estáticos para pruebas PostgreSQL
+        run: python manage.py collectstatic --noinput
+
       - name: Tests de dominio (PostgreSQL)
         run: python manage.py test exercises.tests exercises.test_e2e exercises.test_adversarial --verbosity 0
