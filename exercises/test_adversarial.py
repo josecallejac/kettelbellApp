@@ -1,11 +1,19 @@
 import json
-from decimal import Decimal
 from unittest.mock import patch
+
 from django.contrib.auth.models import User
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from exercises.models import Exercise, Favorite, UserProfile, Workout, WorkoutExercise, WorkoutLog, build_unique_slug
+from exercises.models import (
+    Exercise,
+    Favorite,
+    UserProfile,
+    Workout,
+    WorkoutExercise,
+    WorkoutLog,
+    build_unique_slug,
+)
 from exercises.utils import RoutineGenerator
 
 

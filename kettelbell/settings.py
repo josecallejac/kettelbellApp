@@ -20,6 +20,14 @@ HAS_DEBUG_TOOLBAR = find_spec('debug_toolbar') is not None
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
+# La beta se administra desde el panel. En desarrollo se conserva el registro
+# abierto salvo que el entorno lo desactive expresamente.
+ALLOW_REGISTRATION = os.getenv(
+    'DJANGO_ALLOW_REGISTRATION',
+    'True' if DEBUG else 'False',
+).lower() in ('1', 'true', 'yes', 'on')
+RELEASE_SHA = os.getenv('KETTLEBELL_RELEASE_SHA', os.getenv('GIT_SHA', 'unknown'))
+
 # SECURITY WARNING: keep the secret key used in production secret!
 # La clave se toma SIEMPRE del entorno (DJANGO_SECRET_KEY). Si no existe, se
 # genera una efimera solo para desarrollo. Define DJANGO_SECRET_KEY en tu .env
@@ -76,6 +84,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'exercises.middleware.PrivateResponseCacheMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -102,6 +111,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'exercises.context_processors.app_config',
             ],
         },
     },

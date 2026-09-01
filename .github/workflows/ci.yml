@@ -21,8 +21,23 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Validar Compose
+        env:
+          DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+          POSTGRES_PASSWORD: ci-postgres-password-solo-para-chequeos
+        run: docker compose config --quiet
+
+      - name: Instalar navegador para smoke tests
+        run: python -m playwright install --with-deps chromium
+
       - name: Tests (SQLite)
         run: python manage.py test exercises --verbosity 0
+
+      - name: Verificar migraciones
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Smoke tests de navegador
+        run: python manage.py test exercises.test_browser --verbosity 1
 
       - name: Colectar estáticos para chequeo de despliegue
         env:
@@ -34,4 +49,5 @@ jobs:
         env:
           DJANGO_DEBUG: 'False'
           DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+          DJANGO_ENABLE_HTTPS: 'True'
         run: python manage.py check --deploy

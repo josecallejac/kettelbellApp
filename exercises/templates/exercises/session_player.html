@@ -8,7 +8,10 @@
     <div class="container-sm">
         <!-- Header -->
         <header class="session-header">
-            <h1 class="session-title">{{ workout.title }}</h1>
+        <h1 class="session-title">{{ workout.title }}</h1>
+        {% if planned_session %}
+        <p class="session-plan-context">Plan de 4 semanas · Semana {{ planned_session.week_number }} · {{ planned_session.adaptation_reason }}</p>
+        {% endif %}
             <div class="progress-container">
                 <div class="progress-bar-bg">
                     <div id="progress-bar" class="progress-bar-fill" style="width: 0%"></div>
@@ -21,8 +24,9 @@
 
         <!-- Main Card -->
         <div class="session-card">
-            {% for item in workout_exercises %}
-            <div class="exercise-step" id="step-{{ forloop.counter0 }}" data-reps="{{ item.reps }}" {% if not forloop.first %}style="display: none;"{% endif %}>
+            {% for step in session_steps %}
+            {% with item=step.item %}
+            <div class="exercise-step" id="step-{{ forloop.counter0 }}" data-workout-exercise-id="{{ item.id }}" data-reps="{{ item.reps }}" {% if not forloop.first %}style="display: none;"{% endif %}>
                 <div class="step-image-container">
                     {% if item.exercise.image %}
                     <img src="{{ item.exercise.image_url }}" alt="{{ item.exercise.name }}" class="step-image">
@@ -68,9 +72,39 @@
                             Note: {{ item.notes }}
                         </div>
                         {% endif %}
+
+                        <div class="exercise-progression" aria-live="polite">
+                            <div class="progression-kicker">Progresión para hoy</div>
+                            <strong>
+                                {% if step.progression.suggested_weight %}
+                                {{ step.progression.suggested_weight|floatformat:-1 }} kg sugeridos
+                                {% else %}
+                                Registra tu primer peso
+                                {% endif %}
+                            </strong>
+                            <span>{{ step.progression.reason }}</span>
+                        </div>
+
+                        <div class="exercise-metrics-grid">
+                            <div class="metrics-field">
+                                <label class="metrics-label" for="exercise-weight-{{ item.id }}">Peso usado (kg)</label>
+                                <input type="number" id="exercise-weight-{{ item.id }}" class="metrics-input exercise-weight-input" min="0.1" max="200" step="0.5" value="" data-suggested-weight="{{ step.prefill_weight }}" placeholder="{% if step.prefill_weight %}Sugerido: {{ step.prefill_weight }}{% else %}Ej: 16{% endif %}">
+                            </div>
+                            <div class="metrics-field">
+                                <label class="metrics-label" for="exercise-reps-{{ item.id }}">Repeticiones</label>
+                                <input type="number" id="exercise-reps-{{ item.id }}" class="metrics-input exercise-reps-input" min="0" max="1000" step="1" value="" data-last-reps="{{ step.prefill_reps }}" placeholder="{% if step.prefill_reps %}Último: {{ step.prefill_reps }}{% else %}Opcional{% endif %}">
+                            </div>
+                            <div class="metrics-field">
+                                <label class="metrics-label" for="exercise-rpe-{{ item.id }}">RPE</label>
+                                <select id="exercise-rpe-{{ item.id }}" class="metrics-input exercise-rpe-input" data-last-rpe="{{ step.progression.last_rpe|default:'' }}">
+                                    <option value="">—</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+            {% endwith %}
             {% endfor %}
             
             <!-- Completion Slide -->
@@ -162,12 +196,15 @@
 
 <!-- Session data for external JS -->
 <div id="session-data" style="display:none"
+     data-user-id="{{ request.user.id }}"
      data-workout-id="{{ workout.id }}"
+     data-planned-session-id="{% if planned_session %}{{ planned_session.id }}{% endif %}"
      data-log-url="{% url 'exercises:log_workout' %}"
      data-dashboard-url="{% url 'exercises:dashboard' %}"
      data-csrf-token="{{ csrf_token }}"></div>
 
-{% block extra_js %}
-<script src="{% static 'exercises/js/session-player.js' %}"></script>
 {% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'exercises/js/session-player.js' %}?v=20260831-beta2"></script>
 {% endblock %}

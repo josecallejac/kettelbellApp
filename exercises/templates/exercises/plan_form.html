@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}Crear mi plan - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="plan-section">
+    <div class="container-sm">
+        <header class="section-header">
+            <span class="detail-kicker">Plan adaptativo</span>
+            <h1 class="gradient-text">Entrena con un rumbo claro</h1>
+            <p class="section-subtitle">
+                Configura cuatro semanas y nosotros ajustaremos cada sesión según tu esfuerzo y progreso real.
+            </p>
+            {% if welcome %}<p class="plan-welcome">Puedes crear el plan ahora o volver al panel cuando quieras.</p>{% endif %}
+        </header>
+
+        <form method="post" class="create-form plan-form">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+
+            <div class="form-card main-info">
+                <h2 class="card-title">Tu punto de partida</h2>
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="{{ form.level.id_for_label }}">{{ form.level.label }}</label>
+                        {{ form.level }}
+                        {{ form.level.errors }}
+                    </div>
+                    <div class="form-group half">
+                        <label for="{{ form.goal.id_for_label }}">{{ form.goal.label }}</label>
+                        {{ form.goal }}
+                        {{ form.goal.errors }}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.available_weights.id_for_label }}">{{ form.available_weights.label }}</label>
+                    {{ form.available_weights }}
+                    <small class="field-hint">Separadas por comas, por ejemplo: 8, 12, 16.</small>
+                    {{ form.available_weights.errors }}
+                </div>
+            </div>
+
+            <div class="form-card">
+                <h2 class="card-title">Tu calendario flexible</h2>
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="{{ form.sessions_per_week.id_for_label }}">{{ form.sessions_per_week.label }}</label>
+                        {{ form.sessions_per_week }}
+                        <small class="field-hint">Entre 2 y 5 sesiones por semana.</small>
+                        {{ form.sessions_per_week.errors }}
+                    </div>
+                    <div class="form-group half">
+                        <label for="{{ form.session_duration.id_for_label }}">{{ form.session_duration.label }}</label>
+                        {{ form.session_duration }}
+                        {{ form.session_duration.errors }}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>{{ form.preferred_weekdays.label }}</label>
+                    <div class="weekday-grid">{{ form.preferred_weekdays }}</div>
+                    <small class="field-hint">Podrás reprogramar cualquier sesión pendiente dentro del ciclo.</small>
+                    {{ form.preferred_weekdays.errors }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.start_date.id_for_label }}">{{ form.start_date.label }}</label>
+                    {{ form.start_date }}
+                    {{ form.start_date.errors }}
+                </div>
+            </div>
+
+            <div class="form-card">
+                <h2 class="card-title">Recordatorios (opcional)</h2>
+                <div class="checkbox-group">
+                    {{ form.reminders_enabled }}
+                    <label for="{{ form.reminders_enabled.id_for_label }}">{{ form.reminders_enabled.label }}</label>
+                </div>
+                <div class="form-group reminder-time-field">
+                    <label for="{{ form.reminder_time.id_for_label }}">{{ form.reminder_time.label }}</label>
+                    {{ form.reminder_time }}
+                    <small class="field-hint">Necesitarás activar las notificaciones desde Mi Panel.</small>
+                    {{ form.reminder_time.errors }}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{% url 'exercises:dashboard' %}" class="btn btn-text">Ahora no</a>
+                <button type="submit" class="btn btn-primary btn-lg">Crear mi plan</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

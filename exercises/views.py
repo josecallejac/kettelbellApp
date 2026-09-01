@@ -1,7 +1,7 @@
 import json
 import logging
-import time
-from datetime import timedelta
+import uuid
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 
@@ -11,24 +11,82 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.paginator import Paginator
+from django.db import connection, transaction
 from django.db.models import Avg, Count, Max, Q, Sum
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     CustomAuthenticationForm,
     CustomUserCreationForm,
+    ExercisePerformanceEditFormSet,
+    SessionReadinessForm,
+    TrainingPlanForm,
     UserProfileForm,
     WorkoutExerciseFormSet,
     WorkoutForm,
+    WorkoutLogEditForm,
 )
-from .models import Exercise, Favorite, PushSubscription, UserProfile, Workout, WorkoutLog
+from .history import (
+    detail_context,
+    history_queryset,
+    paginate_history,
+    parse_history_filters,
+    progress_context,
+    user_log_queryset,
+)
+from .models import (
+    Exercise,
+    ExercisePerformance,
+    Favorite,
+    PlannedSession,
+    PushSubscription,
+    TrainingPlan,
+    UserProfile,
+    Workout,
+    WorkoutLog,
+)
+from .plans import (
+    create_training_plan,
+    get_open_plan,
+    next_planned_session,
+    plan_progress,
+    plan_summary,
+    prepare_planned_session,
+)
+from .progression import (
+    build_dashboard_exercise_progress,
+    build_exercise_progress,
+    recommend_exercise_progression,
+)
 from .utils import RoutineGenerator
 
 logger = logging.getLogger(__name__)
+
+
+def service_worker(request):
+    """Serve the worker at the root so its scope can cover the whole app."""
+    path = django_settings.BASE_DIR / 'exercises' / 'static' / 'exercises' / 'sw.js'
+    response = HttpResponse(path.read_bytes(), content_type='application/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+
+def _render_public_page(request, template, context):
+    """Render a page and make its cacheability explicit for the service worker."""
+    response = render(request, template, context)
+    if request.user.is_authenticated:
+        response['Cache-Control'] = 'private, no-store'
+        response['X-KB-Public-Cache'] = '0'
+    else:
+        response['Cache-Control'] = 'public, max-age=300'
+        response['X-KB-Public-Cache'] = '1'
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +151,8 @@ def parse_json_body(request):
 
 
 def register_view(request):
+    if not django_settings.ALLOW_REGISTRATION:
+        raise Http404
     if request.user.is_authenticated:
         return redirect('exercises:landing')
     if request.method == 'POST':
@@ -104,6 +164,38 @@ def register_view(request):
     else:
         form = CustomUserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
+
+
+@require_GET
+def healthz(request):
+    """Minimal unauthenticated health endpoint for the reverse proxy/container."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+    except Exception as exc:  # pragma: no cover - backend-specific failures
+        logger.exception('Health check failed')
+        payload = {
+            'status': 'error',
+            'app': 'kettlebell',
+            'database': 'error',
+            'release_sha': django_settings.RELEASE_SHA,
+            'sha': django_settings.RELEASE_SHA,
+        }
+        if django_settings.DEBUG:
+            payload['detail'] = str(exc)[:200]
+        response = JsonResponse(payload, status=503)
+        response['Cache-Control'] = 'no-store'
+        return response
+    response = JsonResponse({
+        'status': 'ok',
+        'app': 'kettlebell',
+        'database': 'ok',
+        'release_sha': django_settings.RELEASE_SHA,
+        'sha': django_settings.RELEASE_SHA,
+    })
+    response['Cache-Control'] = 'no-store'
+    return response
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -178,9 +270,13 @@ def landing_page(request):
         'total_exercises': total_exercises,
         'favorites_ids': get_favorites_ids(request),
         'video_exercises': video_exercises,
+        'show_plan_invite': request.user.is_authenticated and not get_open_plan(request.user) and not UserProfile.objects.filter(
+            user=request.user,
+            plan_prompt_dismissed_at__isnull=False,
+        ).exists(),
     }
 
-    return render(request, 'exercises/landing.html', context)
+    return _render_public_page(request, 'exercises/landing.html', context)
 
 EXERCISES_PER_PAGE = 12
 
@@ -253,7 +349,7 @@ def exercise_list(request):
         'category_choices': Exercise.CATEGORY_CHOICES,
         'difficulty_choices': Exercise.DIFFICULTY_CHOICES,
     }
-    return render(request, 'exercises/exercise_collection.html', context)
+    return _render_public_page(request, 'exercises/exercise_collection.html', context)
 
 def category_list(request):
     counts = dict(
@@ -268,7 +364,7 @@ def category_list(request):
         }
         for value, label in Exercise.CATEGORY_CHOICES
     ]
-    return render(request, 'exercises/taxonomy_overview.html', {
+    return _render_public_page(request, 'exercises/taxonomy_overview.html', {
         'page_title': 'Categorias',
         'page_subtitle': 'Elige una categoria para ver sus ejercicios.',
         'page_kicker': '4 grupos',
@@ -292,7 +388,7 @@ def category_detail(request, category):
         'page_kicker': 'Categoria',
         'empty_message': 'No hay ejercicios en esta categoria todavia.',
     }
-    return render(request, 'exercises/exercise_collection.html', context)
+    return _render_public_page(request, 'exercises/exercise_collection.html', context)
 
 def difficulty_list(request):
     counts = dict(
@@ -307,7 +403,7 @@ def difficulty_list(request):
         }
         for value, label in Exercise.DIFFICULTY_CHOICES
     ]
-    return render(request, 'exercises/taxonomy_overview.html', {
+    return _render_public_page(request, 'exercises/taxonomy_overview.html', {
         'page_title': 'Niveles',
         'page_subtitle': 'Elige un nivel para ver los ejercicios recomendados.',
         'page_kicker': '3 niveles',
@@ -331,7 +427,7 @@ def difficulty_detail(request, difficulty):
         'page_kicker': 'Nivel',
         'empty_message': 'No hay ejercicios en este nivel todavia.',
     }
-    return render(request, 'exercises/exercise_collection.html', context)
+    return _render_public_page(request, 'exercises/exercise_collection.html', context)
 
 def exercise_detail(request, slug):
     exercise = get_object_or_404(Exercise, slug=slug)
@@ -378,6 +474,15 @@ def exercise_detail(request, slug):
         },
     ]
 
+    related_exercises = Exercise.objects.filter(
+        category=exercise.category
+    ).exclude(id=exercise.id).order_by('?')[:3]
+    exercise_progress = (
+        build_exercise_progress(request.user, exercise)
+        if request.user.is_authenticated
+        else None
+    )
+
     context = {
         'exercise': exercise,
         'is_favorite': is_favorite,
@@ -389,6 +494,8 @@ def exercise_detail(request, slug):
         'muscles_targeted_list': muscles_targeted,
         'variations_list': variations,
         'coaching_cards': coaching_cards,
+        'related_exercises': related_exercises,
+        'exercise_progress': exercise_progress,
     }
     return render(request, 'exercises/detail.html', context)
 
@@ -406,6 +513,7 @@ def get_visible_workout_or_404(user, slug):
 def workout_list(request):
     workouts = (
         get_visible_workouts(request.user)
+        .filter(is_plan_managed=False)
         .annotate(num_exercises=Count('exercises'))
         .order_by('-created_at')
     )
@@ -427,8 +535,37 @@ def workout_detail(request, slug):
 @login_required
 def workout_session(request, slug):
     workout = get_visible_workout_or_404(request.user, slug)
+    planned_session = None
+    raw_planned_session_id = request.GET.get('planned_session')
+    if raw_planned_session_id:
+        try:
+            planned_session = PlannedSession.objects.select_related('plan').get(
+                pk=int(raw_planned_session_id),
+                plan__user=request.user,
+                workout=workout,
+                status='pending',
+                readiness_checked_at__isnull=False,
+            )
+            if planned_session.pain_level == 'stop':
+                raise PlannedSession.DoesNotExist
+        except (TypeError, ValueError, PlannedSession.DoesNotExist):
+            raise Http404
     # Get all exercises ordered
     workout_exercises = workout.exercises.select_related('exercise').all().order_by('order')
+
+    session_steps = []
+    for item in workout_exercises:
+        progression = recommend_exercise_progression(request.user, item.exercise)
+        suggested_weight = progression['suggested_weight']
+        session_steps.append({
+            'item': item,
+            'progression': progression,
+            'prefill_weight': f'{suggested_weight:g}' if suggested_weight is not None else '',
+            'prefill_reps': (
+                str(progression['last_reps'])
+                if progression['last_reps'] is not None else ''
+            ),
+        })
 
     # Prefill del peso en el formulario de guardado: el de la última sesión.
     last_weight = (
@@ -440,7 +577,9 @@ def workout_session(request, slug):
     context = {
         'workout': workout,
         'workout_exercises': workout_exercises,
+        'session_steps': session_steps,
         'last_weight': f'{float(last_weight):g}' if last_weight is not None else '',
+        'planned_session': planned_session,
     }
     return render(request, 'exercises/session_player.html', context)
 
@@ -577,7 +716,13 @@ def dashboard(request):
     recent_logs = logs.select_related('workout')[:5]
     favorites = Favorite.objects.filter(user=request.user).select_related('exercise')
     favorite_exercises = [f.exercise for f in favorites]
-    my_workouts = Workout.objects.filter(created_by=request.user).order_by('-created_at')
+    my_workouts = Workout.objects.filter(
+        created_by=request.user,
+        is_plan_managed=False,
+    ).order_by('-created_at')
+
+    open_plan = get_open_plan(request.user)
+    next_session = next_planned_session(open_plan) if open_plan else None
 
     today = timezone.localdate()
     log_dates = [timezone.localtime(dt).date() for dt in logs.values_list('completed_at', flat=True)]
@@ -598,13 +743,315 @@ def dashboard(request):
         'rpe_chart': build_rpe_chart(logs, today),
         'personal_records': compute_personal_records(logs, log_dates, today),
         'suggested_weight': compute_suggested_weight(request.user),
+        'exercise_progress': build_dashboard_exercise_progress(request.user),
+        'open_plan': open_plan,
+        'plan_progress': plan_progress(open_plan) if open_plan else None,
+        'next_planned_session': next_session,
+        'show_plan_invite': not open_plan and not UserProfile.objects.filter(
+            user=request.user,
+            plan_prompt_dismissed_at__isnull=False,
+        ).exists(),
         'vapid_public_key': django_settings.VAPID_PUBLIC_KEY,
     }
     return render(request, 'exercises/dashboard.html', context)
 
+
+@login_required
+def progress_overview(request):
+    """Private history list and goal-aware progress review."""
+    filters = parse_history_filters(request.GET)
+    page = paginate_history(
+        history_queryset(request.user, filters),
+        request.GET.get('page'),
+    )
+    context = progress_context(
+        request.user,
+        page,
+        filters,
+        plan=get_open_plan(request.user),
+    )
+    return render(request, 'exercises/progress_overview.html', context)
+
+
+def _get_user_history_log(user, log_id, for_update=False):
+    queryset = user_log_queryset(user)
+    if for_update:
+        queryset = queryset.select_for_update()
+    return get_object_or_404(queryset, pk=log_id)
+
+
+@login_required
+def progress_session_detail(request, log_id):
+    """Show one completed session and its exercise-level results."""
+    log = _get_user_history_log(request.user, log_id)
+    return render(request, 'exercises/progress_session_detail.html', detail_context(log))
+
+
+@login_required
+def progress_session_edit(request, log_id):
+    """Correct a completed session without changing its identity or date."""
+    if request.method == 'POST':
+        with transaction.atomic():
+            log = _get_user_history_log(request.user, log_id, for_update=True)
+            performances = ExercisePerformance.objects.filter(
+                workout_log=log,
+                user=request.user,
+            ).select_related(
+                'exercise',
+                'workout_exercise',
+            )
+            has_details = performances.exists()
+            log_form = WorkoutLogEditForm(
+                request.POST,
+                instance=log,
+                has_details=has_details,
+            )
+            performance_formset = ExercisePerformanceEditFormSet(
+                request.POST,
+                queryset=performances,
+                prefix='performances',
+            )
+            if log_form.is_valid() and performance_formset.is_valid():
+                edited_log = log_form.save(commit=False)
+                if has_details:
+                    # Detailed weights are canonical; retain an aggregate for
+                    # old dashboard/export consumers without mixing exercises.
+                    for form in performance_formset:
+                        form.save()
+                    detail_weights = list(
+                        ExercisePerformance.objects.filter(workout_log=log)
+                        .exclude(weight__isnull=True)
+                        .values_list('weight', flat=True)
+                    )
+                    edited_log.kettlebell_weight = max(detail_weights) if detail_weights else None
+                edited_log.edited_at = timezone.now()
+                edited_log.save()
+                messages.success(request, 'Sesión actualizada. Tu progreso ya usa estos datos.')
+                return redirect('exercises:progress_session_detail', log_id=log.id)
+    else:
+        log = _get_user_history_log(request.user, log_id)
+        performances = ExercisePerformance.objects.filter(
+            workout_log=log,
+            user=request.user,
+        ).select_related(
+            'exercise',
+            'workout_exercise',
+        )
+        has_details = performances.exists()
+        log_form = WorkoutLogEditForm(instance=log, has_details=has_details)
+        performance_formset = ExercisePerformanceEditFormSet(
+            queryset=performances,
+            prefix='performances',
+        )
+
+    return render(request, 'exercises/progress_session_edit.html', {
+        **detail_context(log),
+        'log_form': log_form,
+        'performance_formset': performance_formset,
+        'has_details': has_details,
+    })
+
+
+def _complete_plan_if_ready(plan):
+    if plan.status == 'active' and not plan.sessions.filter(status='pending').exists():
+        plan.status = 'completed'
+        plan.completed_at = timezone.now()
+        plan.save(update_fields=['status', 'completed_at', 'updated_at'])
+        return True
+    return False
+
+
+@login_required
+def plan_overview(request):
+    plan = get_open_plan(request.user)
+    if plan is None:
+        latest_plan = TrainingPlan.objects.filter(user=request.user).order_by('-created_at').first()
+        if latest_plan:
+            return redirect('exercises:plan_detail', plan_id=latest_plan.id)
+        return redirect('exercises:plan_create')
+    return _render_plan_detail(request, plan)
+
+
+@login_required
+def plan_detail(request, plan_id):
+    plan = get_object_or_404(TrainingPlan, pk=plan_id, user=request.user)
+    return _render_plan_detail(request, plan)
+
+
+def _render_plan_detail(
+    request,
+    plan,
+    readiness_session=None,
+    readiness_form=None,
+    readiness_regenerate=False,
+):
+    sessions = list(plan.sessions.select_related('workout').order_by('scheduled_date', 'sequence'))
+    today = timezone.localdate()
+    for session in sessions:
+        session.is_today = session.scheduled_date == today and session.status == 'pending'
+        session.is_overdue_display = session.scheduled_date < today and session.status == 'pending'
+    return render(request, 'exercises/plan_overview.html', {
+        'plan': plan,
+        'sessions': sessions,
+        'plan_progress': plan_progress(plan),
+        'next_planned_session': next_planned_session(plan, today),
+        'plan_summary': plan_summary(request.user, plan),
+        'today': today,
+        'readiness_session': readiness_session,
+        'readiness_form': readiness_form,
+        'readiness_regenerate': readiness_regenerate,
+    })
+
+
+@login_required
+def plan_create(request):
+    if get_open_plan(request.user):
+        return redirect('exercises:plan_overview')
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == 'POST':
+        form = TrainingPlanForm(request.POST, profile=profile)
+        if form.is_valid():
+            plan, created = create_training_plan(request.user, form.cleaned_data)
+            if created:
+                messages.success(request, 'Tu plan de cuatro semanas está listo.')
+            return redirect('exercises:plan_detail', plan_id=plan.id)
+    else:
+        form = TrainingPlanForm(profile=profile)
+    return render(request, 'exercises/plan_form.html', {
+        'form': form,
+        'welcome': request.GET.get('welcome') == '1',
+    })
+
+
+@login_required
+@require_POST
+def dismiss_plan_invite(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.plan_prompt_dismissed_at = timezone.now()
+    profile.save(update_fields=['plan_prompt_dismissed_at', 'updated_at'])
+    return redirect('exercises:dashboard')
+
+
+@login_required
+@require_POST
+@rate_limit('plan-prepare', max_requests=20, window_seconds=60)
+def prepare_plan_session_view(request, session_id):
+    session = get_object_or_404(
+        PlannedSession.objects.select_related('plan'),
+        pk=session_id,
+        plan__user=request.user,
+    )
+    form = SessionReadinessForm(
+        request.POST or None,
+        initial={
+            'energy_level': session.energy_level or 3,
+            'pain_level': session.pain_level or 'none',
+            'available_minutes': session.available_minutes or session.estimated_duration,
+        },
+    )
+    if not form.is_valid():
+        return _render_plan_detail(
+            request,
+            session.plan,
+            readiness_session=session,
+            readiness_form=form,
+            readiness_regenerate=request.POST.get('regenerate') == '1',
+        )
+    try:
+        session = prepare_planned_session(
+            request.user,
+            session,
+            regenerate=request.POST.get('regenerate') == '1',
+            readiness=form.cleaned_data,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    if session.pain_level == 'stop' or not session.workout_id:
+        messages.warning(
+            request,
+            'No se generó la sesión porque indicaste dolor. Puedes reprogramarla u omitirla; '
+            'si persiste, busca orientación profesional.',
+        )
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    url = reverse('exercises:workout_session', kwargs={'slug': session.workout.slug})
+    return redirect(f'{url}?planned_session={session.id}')
+
+
+@login_required
+@require_POST
+def reschedule_plan_session(request, session_id):
+    session = get_object_or_404(
+        PlannedSession.objects.select_related('plan'),
+        pk=session_id,
+        plan__user=request.user,
+    )
+    if session.status != 'pending' or session.plan.status != 'active':
+        messages.error(request, 'Solo puedes reprogramar sesiones pendientes de un plan activo.')
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    try:
+        target_date = date.fromisoformat(request.POST.get('scheduled_date', ''))
+    except (TypeError, ValueError):
+        messages.error(request, 'La fecha elegida no es válida.')
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    if not session.plan.start_date <= target_date <= session.plan.end_date:
+        messages.error(request, 'La fecha debe estar dentro de las cuatro semanas del plan.')
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    collision = session.plan.sessions.filter(scheduled_date=target_date).exclude(pk=session.pk).exists()
+    if collision:
+        messages.error(request, 'Ya existe otra sesión en esa fecha.')
+        return redirect('exercises:plan_detail', plan_id=session.plan_id)
+    session.scheduled_date = target_date
+    session.reminder_sent_at = None
+    session.save(update_fields=['scheduled_date', 'reminder_sent_at', 'updated_at'])
+    messages.success(request, 'Sesión reprogramada; tu racha no se verá afectada.')
+    return redirect('exercises:plan_detail', plan_id=session.plan_id)
+
+
+@login_required
+@require_POST
+def skip_plan_session(request, session_id):
+    session = get_object_or_404(PlannedSession, pk=session_id, plan__user=request.user)
+    if session.status == 'pending' and session.plan.status == 'active':
+        session.status = 'skipped'
+        session.save(update_fields=['status', 'updated_at'])
+        _complete_plan_if_ready(session.plan)
+        messages.info(request, 'Sesión marcada como omitida.')
+    return redirect('exercises:plan_detail', plan_id=session.plan_id)
+
+
+@login_required
+@require_POST
+def toggle_plan_pause(request, plan_id):
+    plan = get_object_or_404(TrainingPlan, pk=plan_id, user=request.user)
+    if plan.status == 'active':
+        plan.status = 'paused'
+        message = 'Plan pausado. No se enviarán recordatorios mientras esté detenido.'
+    elif plan.status == 'paused':
+        plan.status = 'active'
+        message = 'Plan reanudado.'
+    else:
+        messages.error(request, 'Este plan ya no se puede pausar o reanudar.')
+        return redirect('exercises:plan_detail', plan_id=plan.id)
+    plan.save(update_fields=['status', 'updated_at'])
+    messages.success(request, message)
+    return redirect('exercises:plan_detail', plan_id=plan.id)
+
+
+@login_required
+@require_POST
+def cancel_plan(request, plan_id):
+    plan = get_object_or_404(TrainingPlan, pk=plan_id, user=request.user)
+    if plan.status in ('active', 'paused'):
+        plan.status = 'cancelled'
+        plan.save(update_fields=['status', 'updated_at'])
+        plan.sessions.filter(status='pending').update(status='skipped', updated_at=timezone.now())
+        messages.info(request, 'Plan cancelado. Tu historial de sesiones se conserva.')
+    return redirect('exercises:plan_detail', plan_id=plan.id)
+
 def _optional_int(data, key, minimum, maximum):
     """Entero opcional del payload: (ok, valor). None/ausente es válido."""
-    raw = data.get(key)
+    raw = (data or {}).get(key)
     if raw is None:
         return True, None
     try:
@@ -614,6 +1061,91 @@ def _optional_int(data, key, minimum, maximum):
     if not minimum <= value <= maximum:
         return False, None
     return True, value
+
+
+def _parse_exercise_performance_payload(data, workout):
+    """Validate and normalize detailed metrics for the selected workout."""
+    raw_logs = data.get('exercise_logs')
+    if raw_logs is None:
+        return True, []
+    if not isinstance(raw_logs, list) or len(raw_logs) > 100:
+        return False, 'El registro por ejercicio no es válido.'
+
+    workout_exercises = {
+        item.id: item
+        for item in workout.exercises.select_related('exercise').all()
+    }
+    seen_ids = set()
+    parsed = []
+    for row in raw_logs:
+        if not isinstance(row, dict):
+            return False, 'Cada registro de ejercicio debe ser un objeto.'
+
+        raw_workout_exercise_id = row.get('workout_exercise_id')
+        if isinstance(raw_workout_exercise_id, bool):
+            return False, 'El ejercicio indicado no es válido.'
+        try:
+            workout_exercise_id = int(raw_workout_exercise_id)
+        except (TypeError, ValueError):
+            return False, 'El ejercicio indicado no es válido.'
+        if workout_exercise_id not in workout_exercises:
+            return False, 'El ejercicio no pertenece a esta rutina.'
+        if workout_exercise_id in seen_ids:
+            return False, 'No se puede registrar dos veces el mismo ejercicio.'
+        seen_ids.add(workout_exercise_id)
+
+        completed = row.get('completed', True)
+        if type(completed) is not bool:
+            return False, 'El estado de completado no es válido.'
+
+        sets_ok, sets_completed = _optional_int(row, 'sets_completed', 0, 100)
+        reps_ok, reps_completed = _optional_int(row, 'reps_completed', 0, 1000)
+        rpe_ok, exercise_rpe = _optional_int(row, 'rpe', 1, 10)
+
+        raw_weight = row.get('weight', row.get('kettlebell_weight'))
+        weight = None
+        weight_ok = True
+        if raw_weight is not None and raw_weight != '':
+            try:
+                weight = Decimal(str(raw_weight))
+                weight_ok = Decimal('0.1') <= weight <= Decimal('200')
+            except (InvalidOperation, ValueError):
+                weight_ok = False
+
+        notes = row.get('notes') or ''
+        notes_ok = isinstance(notes, str) and len(notes) <= 300
+        if not (sets_ok and reps_ok and rpe_ok and weight_ok and notes_ok):
+            return False, 'Las métricas de un ejercicio no son válidas.'
+
+        parsed.append({
+            'workout_exercise': workout_exercises[workout_exercise_id],
+            'completed': completed,
+            'sets_completed': sets_completed or 0,
+            'reps_completed': reps_completed,
+            'weight': weight,
+            'rpe': exercise_rpe,
+            'notes': notes.strip(),
+        })
+    return True, parsed
+
+
+def _validate_planned_session_weights(user, planned_session, aggregate_weight, exercise_logs):
+    """Keep plan-session weights inside the inventory declared by the profile."""
+    if planned_session is None:
+        return None
+    profile = UserProfile.objects.filter(user=user).first()
+    allowed = {
+        Decimal(str(value))
+        for value in (profile.weights_list() if profile else [])
+    }
+    if not allowed:
+        return None
+    candidates = [aggregate_weight]
+    candidates.extend(item['weight'] for item in exercise_logs)
+    outside = next((value for value in candidates if value is not None and value not in allowed), None)
+    if outside is not None:
+        return 'El peso indicado no está en tu inventario del plan.'
+    return None
 
 
 @login_required
@@ -635,8 +1167,10 @@ def profile_view(request):
 @rate_limit('log-workout', max_requests=10, window_seconds=60)
 def log_workout(request):
     data = parse_json_body(request)
+    if data is None:
+        return JsonResponse({'status': 'error', 'message': 'Petición inválida'}, status=400)
     try:
-        workout_id = int((data or {}).get('workout_id'))
+        workout_id = int(data.get('workout_id'))
     except (TypeError, ValueError):
         return JsonResponse({'status': 'error', 'message': 'Petición inválida'}, status=400)
 
@@ -659,28 +1193,174 @@ def log_workout(request):
         return JsonResponse({'status': 'error', 'message': 'Métricas inválidas'}, status=400)
 
     workout = get_object_or_404(get_visible_workouts(request.user), id=workout_id)
-    WorkoutLog.objects.create(
-        user=request.user,
-        workout=workout,
-        duration_minutes=duration,
-        kettlebell_weight=weight,
-        rpe=rpe,
-        notes=notes.strip(),
+    planned_session = None
+    raw_planned_session_id = data.get('planned_session_id')
+    if raw_planned_session_id not in (None, ''):
+        try:
+            planned_session = PlannedSession.objects.select_related('plan').get(
+                pk=int(raw_planned_session_id),
+                plan__user=request.user,
+            )
+        except (TypeError, ValueError, PlannedSession.DoesNotExist):
+            return JsonResponse({'status': 'error', 'message': 'La sesión planificada no es válida.'}, status=400)
+        if planned_session.workout_id != workout.id:
+            return JsonResponse({'status': 'error', 'message': 'La rutina no corresponde al plan.'}, status=409)
+        if planned_session.plan.status != 'active':
+            return JsonResponse({'status': 'error', 'message': 'El plan no está activo.'}, status=409)
+        if not planned_session.readiness_checked_at:
+            return JsonResponse({'status': 'error', 'message': 'Completa el chequeo de preparación antes de guardar.'}, status=409)
+        if planned_session.pain_level == 'stop':
+            return JsonResponse({'status': 'error', 'message': 'La sesión está detenida por dolor.'}, status=409)
+        if planned_session.status != 'pending':
+            existing_for_plan = WorkoutLog.objects.filter(planned_session=planned_session).first()
+            if existing_for_plan:
+                return JsonResponse({
+                    'status': 'success',
+                    'created': False,
+                    'log_id': existing_for_plan.id,
+                    'performance_count': existing_for_plan.exercise_performances.count(),
+                })
+            return JsonResponse({'status': 'error', 'message': 'La sesión ya no está pendiente.'}, status=409)
+    raw_client_session_id = data.get('client_session_id')
+    client_session_id = None
+    if raw_client_session_id not in (None, ''):
+        try:
+            client_session_id = uuid.UUID(str(raw_client_session_id))
+        except (ValueError, AttributeError):
+            return JsonResponse(
+                {'status': 'error', 'message': 'El identificador de sesión no es válido.'},
+                status=400,
+            )
+
+    if client_session_id:
+        existing_log = WorkoutLog.objects.filter(
+            user=request.user,
+            client_session_id=client_session_id,
+        ).first()
+        if existing_log:
+            if existing_log.workout_id not in (None, workout.id):
+                return JsonResponse(
+                    {'status': 'error', 'message': 'El identificador de sesión ya pertenece a otra rutina.'},
+                    status=409,
+                )
+            if planned_session and existing_log.planned_session_id not in (None, planned_session.id):
+                return JsonResponse(
+                    {'status': 'error', 'message': 'El identificador de sesión ya pertenece a otro plan.'},
+                    status=409,
+                )
+            return JsonResponse({
+                'status': 'success',
+                'created': False,
+                'log_id': existing_log.id,
+                'performance_count': existing_log.exercise_performances.count(),
+            })
+
+    valid_details, exercise_logs = _parse_exercise_performance_payload(data, workout)
+    if not valid_details:
+        return JsonResponse({'status': 'error', 'message': exercise_logs}, status=400)
+
+    inventory_error = _validate_planned_session_weights(
+        request.user,
+        planned_session,
+        weight,
+        exercise_logs,
     )
+    if inventory_error:
+        return JsonResponse({'status': 'error', 'message': inventory_error}, status=400)
+
+    if weight is None:
+        detail_weights = [item['weight'] for item in exercise_logs if item['weight'] is not None]
+        if detail_weights and len(set(detail_weights)) == 1:
+            weight = detail_weights[0]
+    if rpe is None:
+        detail_rpes = [item['rpe'] for item in exercise_logs if item['rpe'] is not None]
+        if detail_rpes:
+            rpe = round(sum(detail_rpes) / len(detail_rpes))
+
+    with transaction.atomic():
+        defaults = {
+            'workout': workout,
+            'planned_session': planned_session,
+            'workout_title_snapshot': workout.title,
+            'workout_difficulty_snapshot': workout.difficulty,
+            'workout_duration_snapshot': workout.estimated_duration,
+            'duration_minutes': duration,
+            'kettlebell_weight': weight,
+            'rpe': rpe,
+            'notes': notes.strip(),
+        }
+        if client_session_id:
+            workout_log, created = WorkoutLog.objects.get_or_create(
+                user=request.user,
+                client_session_id=client_session_id,
+                defaults=defaults,
+            )
+            if not created:
+                if workout_log.workout_id not in (None, workout.id):
+                    return JsonResponse(
+                        {'status': 'error', 'message': 'El identificador de sesión ya pertenece a otra rutina.'},
+                        status=409,
+                    )
+                if planned_session and workout_log.planned_session_id not in (None, planned_session.id):
+                    return JsonResponse(
+                        {'status': 'error', 'message': 'El identificador de sesión ya pertenece a otro plan.'},
+                        status=409,
+                    )
+                return JsonResponse({
+                    'status': 'success',
+                    'created': False,
+                    'log_id': workout_log.id,
+                    'performance_count': workout_log.exercise_performances.count(),
+                })
+        else:
+            workout_log = WorkoutLog.objects.create(user=request.user, **defaults)
+            created = True
+
+        ExercisePerformance.objects.bulk_create([
+            ExercisePerformance(
+                user=request.user,
+                workout_log=workout_log,
+                workout_exercise=item['workout_exercise'],
+                exercise=item['workout_exercise'].exercise,
+                completed=item['completed'],
+                sets_completed=item['sets_completed'],
+                reps_completed=item['reps_completed'],
+                weight=item['weight'],
+                rpe=item['rpe'],
+                notes=item['notes'],
+                exercise_name_snapshot=item['workout_exercise'].exercise.name,
+                exercise_category_snapshot=item['workout_exercise'].exercise.category,
+                target_sets=item['workout_exercise'].sets,
+                target_reps=item['workout_exercise'].reps,
+            )
+            for item in exercise_logs
+        ])
+        if planned_session:
+            planned_session.status = 'completed'
+            planned_session.completed_at = timezone.now()
+            planned_session.save(update_fields=['status', 'completed_at', 'updated_at'])
+            _complete_plan_if_ready(planned_session.plan)
 
     # Push notification: felicitación + check de PRs
-    _send_post_workout_push(request.user, workout.title, weight)
+    if created:
+        _send_post_workout_push(request.user, workout.title, weight, log_id=workout_log.id)
 
-    return JsonResponse({'status': 'success'})
+    return JsonResponse({
+        'status': 'success',
+        'created': created,
+        'log_id': workout_log.id,
+        'performance_count': len(exercise_logs),
+    })
 
 
-def _send_post_workout_push(user, workout_title, weight_used):
+def _send_post_workout_push(user, workout_title, weight_used, log_id=None):
     """Send push after workout: congratulate + check for new PRs."""
     from .push_utils import send_new_pr_push, send_workout_completed_push
 
     today = timezone.localdate()
+    all_logs = WorkoutLog.objects.filter(user=user)
     log_dates = list(
-        WorkoutLog.objects.filter(user=user)
+        all_logs
         .values_list('completed_at', flat=True)
     )
     log_dates = [timezone.localtime(dt).date() for dt in log_dates]
@@ -696,16 +1376,20 @@ def _send_post_workout_push(user, workout_title, weight_used):
     # Check for new weight PR
     if weight_used:
         previous_max = (
-            WorkoutLog.objects.filter(user=user, kettlebell_weight__isnull=False)
-            .exclude(kettlebell_weight=weight_used)
+            all_logs.filter(kettlebell_weight__isnull=False)
+            .exclude(pk=log_id)
             .aggregate(m=Max('kettlebell_weight'))['m']
         )
         if previous_max is None or weight_used > previous_max:
             send_new_pr_push(user, 'weight', float(weight_used))
 
     # Check for new streak PR
-    best_streak = _compute_best_streak(log_dates)
-    if streak > 1 and streak >= best_streak:
+    historical_dates = list(
+        all_logs.exclude(pk=log_id).values_list('completed_at', flat=True)
+    )
+    historical_dates = [timezone.localtime(dt).date() for dt in historical_dates]
+    best_streak = _compute_best_streak(historical_dates)
+    if streak > 1 and streak > best_streak:
         send_new_pr_push(user, 'streak', streak)
 
 @login_required
@@ -741,6 +1425,9 @@ def create_workout(request):
 @login_required
 def edit_workout(request, slug):
     workout = get_object_or_404(Workout, slug=slug, created_by=request.user)
+    if workout.is_plan_managed:
+        messages.error(request, 'Las rutinas de un plan solo se pueden regenerar desde el calendario.')
+        return redirect('exercises:workout_detail', slug=workout.slug)
 
     if request.method == 'POST':
         form = WorkoutForm(request.POST, instance=workout)
@@ -768,6 +1455,9 @@ def edit_workout(request, slug):
 @require_POST
 def delete_workout(request, slug):
     workout = get_object_or_404(Workout, slug=slug, created_by=request.user)
+    if workout.is_plan_managed:
+        messages.error(request, 'Las rutinas de un plan se gestionan desde el calendario.')
+        return redirect('exercises:workout_list')
     title = workout.title
     workout.delete()
     messages.success(request, f'Rutina "{title}" eliminada.')
@@ -932,7 +1622,7 @@ def exercise_filters(request):
 
 def workout_export(request, slug):
     """Devuelve JSON con los datos de la rutina para generar imagen compartible."""
-    workout = get_object_or_404(Workout, slug=slug)
+    workout = get_visible_workout_or_404(request.user, slug)
     exercises = workout.exercises.select_related('exercise').order_by('order')
 
     return JsonResponse({

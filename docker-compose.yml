@@ -6,28 +6,67 @@ services:
     restart: unless-stopped
     build: .
     command: gunicorn kettelbell.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    mem_limit: 512m
+    pids_limit: 256
+    restart: unless-stopped
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?define DJANGO_SECRET_KEY en tu .env}
       DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web,192.168.100.2
+      DJANGO_ALLOW_REGISTRATION: ${DJANGO_ALLOW_REGISTRATION:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_ENABLE_HTTPS: ${DJANGO_ENABLE_HTTPS:-False}
+      KETTLEBELL_RELEASE_SHA: ${KETTLEBELL_RELEASE_SHA:-unknown}
       POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
       POSTGRES_USER: ${POSTGRES_USER:-kettlebell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en tu .env}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-BIqEAu0VJ4UDmzRKPuaC15BthS_FRArnFZ3Ux_jDs8CS_1ScM_8rOP8bRK2puB_Up2HImJpLMMEDACqsupZLBew}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_ADMIN_EMAIL: ${VAPID_ADMIN_EMAIL:-admin@kettlebellpro.app}
     volumes:
       - static_data:/app/staticfiles
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; request = urllib.request.Request('http://localhost:8000/healthz/', headers={'X-Forwarded-Proto': 'https'}); urllib.request.urlopen(request)"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 60s
+
+  reminders:
+    container_name: kettlebell_reminders
+    build: .
+    command: python manage.py send_plan_reminders --loop --interval 60
+    mem_limit: 256m
+    pids_limit: 128
+    restart: unless-stopped
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?define DJANGO_SECRET_KEY en tu .env}
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOW_REGISTRATION: ${DJANGO_ALLOW_REGISTRATION:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,web,reminders}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_ENABLE_HTTPS: ${DJANGO_ENABLE_HTTPS:-False}
+      KETTLEBELL_RELEASE_SHA: ${KETTLEBELL_RELEASE_SHA:-unknown}
+      KETTLEBELL_SKIP_INIT: "True"
+      POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
+      POSTGRES_USER: ${POSTGRES_USER:-kettlebell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en tu .env}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_ADMIN_EMAIL: ${VAPID_ADMIN_EMAIL:-admin@kettlebellpro.app}
+    depends_on:
+      web:
+        condition: service_healthy
+      db:
+        condition: service_healthy
 
   db:
     container_name: kettlebell_postgres
@@ -35,6 +74,9 @@ services:
     pids_limit: 256
     restart: unless-stopped
     image: postgres:16-alpine
+    mem_limit: 512m
+    pids_limit: 256
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
       POSTGRES_USER: ${POSTGRES_USER:-kettlebell}
@@ -42,7 +84,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kettlebell -d kettlebell"]
       interval: 5s
@@ -55,8 +97,11 @@ services:
     pids_limit: 128
     restart: unless-stopped
     image: adminer:4
+    mem_limit: 256m
+    pids_limit: 128
+    restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     depends_on:
       db:
         condition: service_healthy

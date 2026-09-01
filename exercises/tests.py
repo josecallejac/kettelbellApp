@@ -1,13 +1,30 @@
 import json
+import uuid
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings as django_settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import Exercise, Favorite, PushSubscription, UserProfile, Workout, WorkoutExercise, WorkoutLog
+from .history import build_weekly_review
+from .models import (
+    Exercise,
+    ExercisePerformance,
+    Favorite,
+    PlannedSession,
+    PushSubscription,
+    TrainingPlan,
+    UserProfile,
+    Workout,
+    WorkoutExercise,
+    WorkoutLog,
+)
+from .plans import build_schedule, create_training_plan, prepare_planned_session
+from .progression import build_exercise_progress, recommend_exercise_progression
 from .utils import RoutineGenerator
 
 
@@ -73,6 +90,20 @@ class AuthTests(TestCase):
             response = self.client.get(url)
             self.assertRedirects(response, reverse('exercises:landing'))
 
+    @override_settings(ALLOW_REGISTRATION=False)
+    def test_closed_beta_hides_and_blocks_registration(self):
+        self.assertEqual(self.client.get(self.register_url).status_code, 404)
+        response = self.client.post(self.register_url, {
+            'username': 'blocked',
+            'password1': 'S3gura-clave!',
+            'password2': 'S3gura-clave!',
+        })
+        self.assertEqual(response.status_code, 404)
+        landing = self.client.get(reverse('exercises:landing'))
+        login_page = self.client.get(self.login_url)
+        self.assertNotContains(landing, 'Registrarse')
+        self.assertNotContains(login_page, 'Regístrate aquí')
+
     def test_logout_user(self):
         User.objects.create_user(username='testuser', password='password123')
         self.client.login(username='testuser', password='password123')
@@ -86,6 +117,23 @@ class AuthTests(TestCase):
         response = self.client.get(self.logout_url)
         self.assertEqual(response.status_code, 405)
         self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+
+class HealthCheckTests(TestCase):
+    def test_healthz_reports_application_database_and_sha(self):
+        response = self.client.get(reverse('exercises:healthz'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'ok')
+        self.assertEqual(response.json()['database'], 'ok')
+        self.assertIn('sha', response.json())
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        self.assertEqual(self.client.post(reverse('exercises:healthz')).status_code, 405)
+
+    @patch('exercises.views.connection.cursor', side_effect=Exception('database down'))
+    def test_healthz_returns_503_when_database_is_unavailable(self, _cursor):
+        response = self.client.get(reverse('exercises:healthz'))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()['database'], 'error')
 
 
 class ExerciseModelTests(TestCase):
@@ -601,8 +649,9 @@ class DashboardTests(TestCase):
         self.assertEqual(prs['best_week'], 0)
 
     def test_dashboard_suggested_weight_from_history(self):
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
         now = timezone.now()
         WorkoutLog.objects.create(
             user=self.user, workout=self.mine, kettlebell_weight=16,
@@ -685,6 +734,744 @@ class WorkoutLogApiTests(TestCase):
             response = self._log(payload)
             self.assertEqual(response.status_code, 400, payload)
         self.assertEqual(WorkoutLog.objects.count(), 0)
+
+
+class ExercisePerformanceApiTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username='performanceuser', password='password123')
+        self.other = User.objects.create_user(username='otherperformance', password='password123')
+        self.exercise = Exercise.objects.create(
+            name='Press de prueba', description='x', category='strength', difficulty='beginner',
+        )
+        self.workout = Workout.objects.create(
+            title='Rutina detallada', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        self.workout_exercise = WorkoutExercise.objects.create(
+            workout=self.workout, exercise=self.exercise, order=1, sets=3, reps='10 reps',
+        )
+        self.url = reverse('exercises:log_workout')
+        self.client.login(username='performanceuser', password='password123')
+
+    def _log(self, payload):
+        return self.client.post(self.url, json.dumps(payload), content_type='application/json')
+
+    def test_detailed_log_creates_performance_and_aggregates_metrics(self):
+        response = self._log({
+            'workout_id': self.workout.id,
+            'duration_minutes': 25,
+            'exercise_logs': [{
+                'workout_exercise_id': self.workout_exercise.id,
+                'completed': True,
+                'sets_completed': 3,
+                'reps_completed': 10,
+                'weight': 16,
+                'rpe': 6,
+            }],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['performance_count'], 1)
+        log = WorkoutLog.objects.get(user=self.user)
+        self.assertEqual(float(log.kettlebell_weight), 16.0)
+        self.assertEqual(log.rpe, 6)
+        performance = ExercisePerformance.objects.get(workout_log=log)
+        self.assertEqual(performance.exercise, self.exercise)
+        self.assertEqual(performance.sets_completed, 3)
+        self.assertEqual(performance.reps_completed, 10)
+        self.assertEqual(performance.volume, 480.0)
+
+    def test_detailed_log_rejects_exercise_outside_workout(self):
+        other_workout = Workout.objects.create(
+            title='Otra rutina', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        foreign_item = WorkoutExercise.objects.create(
+            workout=other_workout, exercise=self.exercise, order=1, sets=3, reps='10 reps',
+        )
+        response = self._log({
+            'workout_id': self.workout.id,
+            'exercise_logs': [{'workout_exercise_id': foreign_item.id, 'weight': 16}],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(WorkoutLog.objects.exists())
+        self.assertFalse(ExercisePerformance.objects.exists())
+
+    def test_client_session_id_is_idempotent(self):
+        client_session_id = str(uuid.uuid4())
+        payload = {
+            'workout_id': self.workout.id,
+            'client_session_id': client_session_id,
+            'exercise_logs': [{
+                'workout_exercise_id': self.workout_exercise.id,
+                'completed': True,
+                'sets_completed': 3,
+                'reps_completed': 10,
+                'weight': 12,
+            }],
+        }
+        first = self._log(payload)
+        second = self._log(payload)
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.json()['created'])
+        self.assertEqual(second.status_code, 200)
+        self.assertFalse(second.json()['created'])
+        self.assertEqual(WorkoutLog.objects.count(), 1)
+        self.assertEqual(ExercisePerformance.objects.count(), 1)
+
+
+class ExerciseProgressionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='progressionuser', password='password123')
+        self.other = User.objects.create_user(username='otherprogression', password='password123')
+        UserProfile.objects.create(user=self.user, level='intermediate', available_weights='8, 12, 16')
+        self.exercise = Exercise.objects.create(
+            name='Sentadilla de progreso', description='x', category='strength', difficulty='beginner',
+        )
+        self.workout = Workout.objects.create(
+            title='Rutina de progreso', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=True,
+        )
+        self.workout_exercise = WorkoutExercise.objects.create(
+            workout=self.workout, exercise=self.exercise, order=1, sets=3, reps='10 reps',
+        )
+
+    def _performance(self, user, weight, rpe, completed=True, workout=None):
+        workout = workout or self.workout
+        log = WorkoutLog.objects.create(user=user, workout=workout, rpe=rpe)
+        return ExercisePerformance.objects.create(
+            user=user,
+            workout_log=log,
+            workout_exercise=self.workout_exercise,
+            exercise=self.exercise,
+            completed=completed,
+            sets_completed=3,
+            reps_completed=10,
+            weight=weight,
+            rpe=rpe,
+        )
+
+    def test_easy_rpe_progresses_one_available_weight(self):
+        self._performance(self.user, 8, 6)
+        self._performance(self.user, 12, 6)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['suggested_weight'], 16.0)
+        self.assertEqual(recommendation['status'], 'progress')
+
+    def test_one_easy_session_is_not_enough_to_increase_weight(self):
+        self._performance(self.user, 12, 6)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['suggested_weight'], 12.0)
+        self.assertEqual(recommendation['status'], 'maintain')
+
+    def test_hard_rpe_recovers_one_available_weight(self):
+        self._performance(self.user, 16, 9)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['suggested_weight'], 12.0)
+        self.assertEqual(recommendation['status'], 'deload')
+
+    def test_recommendation_stays_inside_current_profile_inventory(self):
+        self.user.profile.available_weights = '8, 12'
+        self.user.profile.save()
+        self._performance(self.user, 8, 6)
+        self._performance(self.user, 16, 6)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['suggested_weight'], 12.0)
+
+    def test_other_user_history_is_not_used(self):
+        self._performance(self.other, 16, 6)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['history_count'], 0)
+        self.assertEqual(recommendation['suggested_weight'], 12.0)
+        self.assertEqual(recommendation['status'], 'new')
+
+    def test_detail_progress_summary_tracks_sessions_and_volume(self):
+        self._performance(self.user, 12, 6)
+        second_workout = Workout.objects.create(
+            title='Rutina de progreso 2', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=True,
+        )
+        second_item = WorkoutExercise.objects.create(
+            workout=second_workout, exercise=self.exercise, order=1, sets=3, reps='10 reps',
+        )
+        second_log = WorkoutLog.objects.create(user=self.user, workout=second_workout, rpe=7)
+        ExercisePerformance.objects.create(
+            user=self.user, workout_log=second_log, workout_exercise=second_item,
+            exercise=self.exercise, sets_completed=3, reps_completed=10,
+            weight=16, rpe=7,
+        )
+        summary = build_exercise_progress(self.user, self.exercise)
+        self.assertEqual(summary['sessions'], 2)
+        self.assertEqual(summary['max_weight'], 16.0)
+        self.assertEqual(summary['best_volume'], 480.0)
+        self.assertEqual(summary['recommendation']['suggested_weight'], 16.0)
+
+    def test_session_and_detail_render_exercise_progression(self):
+        self.client.login(username='progressionuser', password='password123')
+        session_response = self.client.get(
+            reverse('exercises:workout_session', kwargs={'slug': self.workout.slug})
+        )
+        self.assertEqual(session_response.status_code, 200)
+        self.assertContains(session_response, f'data-workout-exercise-id="{self.workout_exercise.id}"')
+        self.assertContains(session_response, '12 kg sugeridos')
+
+        detail_response = self.client.get(
+            reverse('exercises:detail', kwargs={'slug': self.exercise.slug})
+        )
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, 'Progreso en este ejercicio')
+
+
+class HistoryProgressTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='historyuser', password='password123')
+        self.other = User.objects.create_user(username='otherhistory', password='password123')
+        UserProfile.objects.create(
+            user=self.user,
+            level='intermediate',
+            goal='strength',
+            available_weights='8, 12, 16',
+        )
+        self.exercise = Exercise.objects.create(
+            name='Press de historial',
+            description='x',
+            category='strength',
+            difficulty='beginner',
+        )
+        self.workout = Workout.objects.create(
+            title='Rutina de historial',
+            description='x',
+            difficulty='beginner',
+            estimated_duration=30,
+            created_by=self.user,
+            is_public=False,
+        )
+        self.workout_exercise = WorkoutExercise.objects.create(
+            workout=self.workout,
+            exercise=self.exercise,
+            order=1,
+            sets=3,
+            reps='10 reps',
+        )
+        self.client.login(username='historyuser', password='password123')
+
+    def _log(self, days_ago=0, details=True, weight=12, rpe=6, planned_session=None):
+        log = WorkoutLog.objects.create(
+            user=self.user,
+            workout=self.workout,
+            planned_session=planned_session,
+            duration_minutes=30,
+            kettlebell_weight=weight,
+            rpe=rpe,
+            notes='Registro original',
+        )
+        WorkoutLog.objects.filter(pk=log.pk).update(
+            completed_at=timezone.now() - timedelta(days=days_ago),
+        )
+        if details:
+            ExercisePerformance.objects.create(
+                user=self.user,
+                workout_log=log,
+                workout_exercise=self.workout_exercise,
+                exercise=self.exercise,
+                completed=True,
+                sets_completed=3,
+                reps_completed=10,
+                weight=weight,
+                rpe=rpe,
+                notes='Detalle original',
+            )
+        log.refresh_from_db()
+        return log
+
+    def _plan_session(self):
+        today = timezone.localdate()
+        plan = TrainingPlan.objects.create(
+            user=self.user,
+            goal='strength',
+            level='intermediate',
+            sessions_per_week=2,
+            session_duration=30,
+            preferred_weekdays=[today.weekday(), (today.weekday() + 2) % 7],
+            start_date=today,
+            end_date=today + timedelta(days=27),
+        )
+        return PlannedSession.objects.create(
+            plan=plan,
+            sequence=1,
+            week_number=1,
+            scheduled_date=today,
+            focus='strength',
+            session_kind='main',
+            phase='base',
+            estimated_duration=30,
+            status='completed',
+        )
+
+    def _edit_payload(self, get_response, **overrides):
+        formset = get_response.context['performance_formset']
+        data = {
+            'duration_minutes': '45',
+            'rpe': '7',
+            'notes': 'Corrección revisada',
+            'performances-TOTAL_FORMS': str(formset.total_form_count()),
+            'performances-INITIAL_FORMS': str(formset.initial_form_count()),
+            'performances-MIN_NUM_FORMS': '0',
+            'performances-MAX_NUM_FORMS': '1000',
+        }
+        for index, form in enumerate(formset.forms):
+            data.update({
+                f'performances-{index}-id': str(form.instance.id),
+                f'performances-{index}-completed': 'on',
+                f'performances-{index}-sets_completed': '2',
+                f'performances-{index}-reps_completed': '8',
+                f'performances-{index}-weight': '16',
+                f'performances-{index}-rpe': '7',
+                f'performances-{index}-notes': 'Detalle corregido',
+            })
+        data.update(overrides)
+        return data
+
+    def test_progress_overview_requires_authentication(self):
+        self.client.logout()
+        response = self.client.get(reverse('exercises:progress_overview'))
+        self.assertRedirects(
+            response,
+            f"{reverse('exercises:login')}?next={reverse('exercises:progress_overview')}",
+        )
+
+    def test_progress_overview_filters_and_paginates_private_history(self):
+        for index in range(13):
+            self._log(days_ago=index % 5)
+        self._log(days_ago=45, weight=8)
+        planned = self._plan_session()
+        self._log(days_ago=2, planned_session=planned)
+
+        response = self.client.get(reverse('exercises:progress_overview'), {
+            'period': '30',
+            'source': 'standalone',
+            'exercise': str(self.exercise.id),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['history_page'].paginator.count, 13)
+        self.assertEqual(len(response.context['history_page'].object_list), 12)
+        self.assertTrue(response.context['history_page'].has_next())
+        self.assertContains(response, 'Historial y progreso')
+        self.assertContains(response, 'Rutina de historial')
+        self.assertNotContains(response, 'Resultados anteriores')
+
+    def test_weekly_review_uses_goal_and_same_elapsed_days(self):
+        today = timezone.localdate()
+        current_offset = 0 if today.weekday() == 0 else 1
+        self._log(days_ago=current_offset, weight=16)
+        self._log(days_ago=current_offset + 7, weight=8)
+
+        review = build_weekly_review(self.user, today=today)
+        self.assertEqual(review['current']['sessions'], 1)
+        self.assertEqual(review['previous']['sessions'], 1)
+        self.assertEqual(review['current']['total_volume'], 480.0)
+        self.assertEqual(review['goal_highlight']['goal'], 'strength')
+        self.assertEqual(review['goal_highlight']['label'], 'Volumen total')
+        self.assertEqual(review['goal_highlight']['delta'], 240.0)
+
+    def test_detail_shows_legacy_snapshot_without_performances(self):
+        log = self._log(details=False, weight=8)
+        self.workout.delete()
+        response = self.client.get(
+            reverse('exercises:progress_session_detail', kwargs={'log_id': log.id}),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Rutina de historial')
+        self.assertContains(response, 'registro es anterior al detalle por ejercicio')
+
+    def test_detail_and_edit_are_isolated_by_user(self):
+        log = self._log()
+        other_workout = Workout.objects.create(
+            title='Rutina ajena',
+            description='x',
+            difficulty='beginner',
+            estimated_duration=20,
+            created_by=self.other,
+            is_public=False,
+        )
+        other_log = WorkoutLog.objects.create(user=self.other, workout=other_workout)
+        for name, kwargs in (
+            ('progress_session_detail', {'log_id': other_log.id}),
+            ('progress_session_edit', {'log_id': other_log.id}),
+        ):
+            response = self.client.get(reverse(f'exercises:{name}', kwargs=kwargs))
+            self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            self.client.get(
+                reverse('exercises:progress_session_detail', kwargs={'log_id': log.id}),
+            ).status_code,
+            200,
+        )
+
+    def test_edit_updates_summary_and_details_without_changing_identity(self):
+        log = self._log(weight=12)
+        original_completed_at = log.completed_at
+        original_workout_id = log.workout_id
+        edit_url = reverse('exercises:progress_session_edit', kwargs={'log_id': log.id})
+        get_response = self.client.get(edit_url)
+        response = self.client.post(edit_url, self._edit_payload(get_response))
+        self.assertRedirects(
+            response,
+            reverse('exercises:progress_session_detail', kwargs={'log_id': log.id}),
+        )
+
+        log.refresh_from_db()
+        performance = ExercisePerformance.objects.get(workout_log=log)
+        self.assertEqual(log.duration_minutes, 45)
+        self.assertEqual(log.rpe, 7)
+        self.assertEqual(log.notes, 'Corrección revisada')
+        self.assertEqual(float(log.kettlebell_weight), 16.0)
+        self.assertEqual(performance.sets_completed, 2)
+        self.assertEqual(performance.reps_completed, 8)
+        self.assertEqual(float(performance.weight), 16.0)
+        self.assertIsNotNone(log.edited_at)
+        self.assertEqual(log.completed_at, original_completed_at)
+        self.assertEqual(log.workout_id, original_workout_id)
+
+    def test_invalid_edit_is_atomic(self):
+        log = self._log(weight=12)
+        edit_url = reverse('exercises:progress_session_edit', kwargs={'log_id': log.id})
+        get_response = self.client.get(edit_url)
+        response = self.client.post(
+            edit_url,
+            self._edit_payload(get_response, **{'performances-0-weight': '999'}),
+        )
+        self.assertEqual(response.status_code, 200)
+        log.refresh_from_db()
+        performance = ExercisePerformance.objects.get(workout_log=log)
+        self.assertEqual(log.duration_minutes, 30)
+        self.assertIsNone(log.edited_at)
+        self.assertEqual(float(performance.weight), 12.0)
+
+    def test_legacy_edit_allows_general_weight(self):
+        log = self._log(details=False, weight=8)
+        edit_url = reverse('exercises:progress_session_edit', kwargs={'log_id': log.id})
+        response = self.client.post(edit_url, {
+            'duration_minutes': '25',
+            'rpe': '5',
+            'kettlebell_weight': '10',
+            'notes': 'Sesión antigua corregida',
+            'performances-TOTAL_FORMS': '0',
+            'performances-INITIAL_FORMS': '0',
+            'performances-MIN_NUM_FORMS': '0',
+            'performances-MAX_NUM_FORMS': '1000',
+        })
+        self.assertRedirects(
+            response,
+            reverse('exercises:progress_session_detail', kwargs={'log_id': log.id}),
+        )
+        log.refresh_from_db()
+        self.assertEqual(log.duration_minutes, 25)
+        self.assertEqual(float(log.kettlebell_weight), 10.0)
+        self.assertIsNotNone(log.edited_at)
+
+
+class AdaptivePlanTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='planuser', password='password123')
+        UserProfile.objects.create(
+            user=self.user,
+            level='beginner',
+            goal='strength',
+            available_weights='8, 12, 16',
+        )
+        self.exercises = []
+        for category in ('strength', 'cardio', 'flexibility', 'full_body'):
+            for index in range(2):
+                self.exercises.append(Exercise.objects.create(
+                    name=f'Plan {category} {index}',
+                    description='x',
+                    category=category,
+                    difficulty='beginner',
+                ))
+
+    def _data(self, **overrides):
+        data = {
+            'level': 'beginner',
+            'goal': 'strength',
+            'available_weights': '8, 12, 16',
+            'sessions_per_week': 3,
+            'preferred_weekdays': ['0', '2', '4'],
+            'session_duration': 30,
+            'start_date': timezone.localdate().isoformat(),
+            'reminders_enabled': False,
+            'reminder_time': '19:00',
+        }
+        data.update(overrides)
+        return data
+
+    def test_schedule_creates_four_weeks_with_unique_dates(self):
+        rows = build_schedule(
+            timezone.localdate(), 'strength', 3, [0, 2, 4], 'beginner', 30,
+        )
+        self.assertEqual(len(rows), 12)
+        self.assertEqual(len({row['scheduled_date'] for row in rows}), 12)
+        self.assertEqual([row['phase'] for row in rows[::3]], ['base', 'base', 'build', 'deload'])
+        self.assertEqual([row['session_kind'] for row in rows[:3]], ['main', 'main', 'recovery'])
+
+    def test_schedule_preserves_weekdays_when_start_is_not_monday(self):
+        today = timezone.localdate()
+        start = today + timedelta(days=(2 - today.weekday()) % 7)
+        rows = build_schedule(start, 'strength', 3, [0, 2, 4], 'beginner', 30)
+        self.assertEqual(
+            [row['scheduled_date'].weekday() for row in rows[:3]],
+            [2, 4, 0],
+        )
+
+    def test_create_plan_view_persists_profile_and_calendar(self):
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(reverse('exercises:plan_create'), self._data())
+        self.assertEqual(response.status_code, 302)
+        plan = TrainingPlan.objects.get(user=self.user)
+        self.assertEqual(plan.sessions_per_week, 3)
+        self.assertEqual(plan.sessions.count(), 12)
+        self.assertEqual(self.user.profile.goal, 'strength')
+
+    def test_prepare_without_readiness_only_shows_check(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:plan_session_prepare', kwargs={'session_id': session.id}),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Ajustemos tu sesión de hoy')
+        session.refresh_from_db()
+        self.assertIsNone(session.workout_id)
+
+    def test_readiness_stop_does_not_materialize_workout(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:plan_session_prepare', kwargs={'session_id': session.id}),
+            {'energy_level': 3, 'pain_level': 'stop', 'available_minutes': 30},
+        )
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertIsNone(session.workout_id)
+        self.assertIsNotNone(session.readiness_checked_at)
+        self.assertIn('dolor', session.adaptation_reason)
+
+    def test_readiness_stop_removes_unstarted_plan_routine(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        prepare_planned_session(
+            self.user,
+            session,
+            readiness={'energy_level': 3, 'pain_level': 'none', 'available_minutes': 30},
+        )
+        session.refresh_from_db()
+        old_workout_id = session.workout_id
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:plan_session_prepare', kwargs={'session_id': session.id}),
+            {'energy_level': 3, 'pain_level': 'stop', 'available_minutes': 30},
+        )
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertIsNone(session.workout_id)
+        self.assertFalse(Workout.objects.filter(pk=old_workout_id).exists())
+
+    def test_low_readiness_shortens_session_and_lowers_volume(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:plan_session_prepare', kwargs={'session_id': session.id}),
+            {'energy_level': 2, 'pain_level': 'none', 'available_minutes': 15},
+        )
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertIsNotNone(session.workout_id)
+        self.assertEqual(session.workout.estimated_duration, 15)
+        self.assertIn('reducimos volumen', session.adaptation_reason)
+        self.assertIn('acortada a 15 min', session.adaptation_reason)
+
+    def test_planned_log_rejects_weight_outside_profile_inventory(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        prepare_planned_session(
+            self.user,
+            session,
+            readiness={'energy_level': 3, 'pain_level': 'none', 'available_minutes': 30},
+        )
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:log_workout'),
+            data=json.dumps({
+                'workout_id': session.workout_id,
+                'planned_session_id': session.id,
+                'kettlebell_weight': 24,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(WorkoutLog.objects.filter(planned_session=session).exists())
+
+    def test_plan_dashboard_and_detail_render(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        self.client.login(username='planuser', password='password123')
+        dashboard = self.client.get(reverse('exercises:dashboard'))
+        detail = self.client.get(reverse('exercises:plan_detail', kwargs={'plan_id': plan.id}))
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertContains(dashboard, 'Ver mi plan')
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, 'Tus sesiones')
+        self.assertContains(detail, 'Semana 1')
+
+    def test_public_page_cache_is_private_for_authenticated_users(self):
+        anonymous = self.client.get(reverse('exercises:landing'))
+        self.assertEqual(anonymous.headers['X-KB-Public-Cache'], '1')
+        self.assertIn('public', anonymous.headers['Cache-Control'])
+
+        self.client.login(username='planuser', password='password123')
+        authenticated = self.client.get(reverse('exercises:landing'))
+        self.assertEqual(authenticated.headers['X-KB-Public-Cache'], '0')
+        self.assertIn('no-store', authenticated.headers['Cache-Control'])
+        self.assertEqual(authenticated.headers['Pragma'], 'no-cache')
+
+    def test_authenticated_api_response_is_not_cacheable(self):
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:push_subscription'),
+            data=json.dumps({'endpoint': '', 'keys': {}}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('no-store', response.headers['Cache-Control'])
+        self.assertEqual(response.headers['Pragma'], 'no-cache')
+
+    def test_prepare_session_and_log_complete_plan_session(self):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [0, 2, 4],
+            'start_date': timezone.localdate(),
+        })
+        session = plan.sessions.first()
+        self.client.login(username='planuser', password='password123')
+        response = self.client.post(
+            reverse('exercises:plan_session_prepare', kwargs={'session_id': session.id}),
+            {
+                'energy_level': 3,
+                'pain_level': 'none',
+                'available_minutes': 30,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertIsNotNone(session.workout_id)
+        self.assertEqual(session.energy_level, 3)
+        payload = {
+            'workout_id': session.workout_id,
+            'planned_session_id': session.id,
+            'client_session_id': str(uuid.uuid4()),
+            'duration_minutes': 25,
+            'rpe': 6,
+        }
+        logged = self.client.post(
+            reverse('exercises:log_workout'),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(logged.status_code, 200)
+        session.refresh_from_db()
+        plan.refresh_from_db()
+        self.assertEqual(session.status, 'completed')
+        self.assertEqual(WorkoutLog.objects.get(planned_session=session).workout_title_snapshot, session.workout.title)
+        self.assertEqual(plan.status, 'active')
+
+    def test_deleting_workout_preserves_log_snapshots(self):
+        workout = Workout.objects.create(
+            title='Rutina histórica', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        item = WorkoutExercise.objects.create(
+            workout=workout, exercise=self.exercises[0], order=1, sets=3, reps='10 reps',
+        )
+        log = WorkoutLog.objects.create(
+            user=self.user,
+            workout=workout,
+            workout_title_snapshot=workout.title,
+            workout_difficulty_snapshot=workout.difficulty,
+            workout_duration_snapshot=workout.estimated_duration,
+        )
+        performance = ExercisePerformance.objects.create(
+            user=self.user,
+            workout_log=log,
+            workout_exercise=item,
+            exercise=self.exercises[0],
+            exercise_name_snapshot=self.exercises[0].name,
+            exercise_category_snapshot=self.exercises[0].category,
+            target_sets=item.sets,
+            target_reps=item.reps,
+            sets_completed=3,
+            reps_completed=10,
+            weight=8,
+        )
+        workout.delete()
+        log.refresh_from_db()
+        performance.refresh_from_db()
+        self.assertIsNone(log.workout)
+        self.assertEqual(log.workout_title_snapshot, 'Rutina histórica')
+        self.assertIsNone(performance.workout_exercise)
+        self.assertEqual(performance.exercise_name_snapshot, self.exercises[0].name)
+
+    def test_private_export_is_not_visible_to_other_user(self):
+        workout = Workout.objects.create(
+            title='Privada', description='x', difficulty='beginner',
+            estimated_duration=20, created_by=self.user, is_public=False,
+        )
+        User.objects.create_user(username='planother', password='password123')
+        self.client.login(username='planother', password='password123')
+        response = self.client.get(reverse('exercises:workout_export', kwargs={'slug': workout.slug}))
+        self.assertEqual(response.status_code, 404)
+
+    @patch('exercises.management.commands.send_plan_reminders.send_push_to_user', return_value=1)
+    def test_plan_reminder_is_sent_once(self, mock_send):
+        plan, _ = create_training_plan(self.user, {
+            **self._data(),
+            'preferred_weekdays': [timezone.localdate().weekday(), (timezone.localdate().weekday() + 2) % 7, (timezone.localdate().weekday() + 4) % 7],
+            'start_date': timezone.localdate(),
+            'reminders_enabled': True,
+            'reminder_time': '00:01',
+        })
+        first = plan.sessions.get(scheduled_date=timezone.localdate())
+        from django.core.management import call_command
+        call_command('send_plan_reminders')
+        first.refresh_from_db()
+        call_command('send_plan_reminders')
+        self.assertIsNotNone(first.reminder_sent_at)
+        mock_send.assert_called_once()
 
 
 class BaseWorkoutsTests(TestCase):
@@ -1013,16 +1800,15 @@ class WorkoutExportTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
 
-    def test_export_private_workout_accessible_by_slug(self):
+    def test_export_private_workout_is_hidden_from_other_users(self):
         """workout_export usa get_object_or_404 sin filtro de visibilidad,
         así que cualquier usuario con el slug puede acceder."""
         self.workout.is_public = False
         self.workout.save()
-        other = User.objects.create_user(username='other', password='password123')
+        User.objects.create_user(username='other', password='password123')
         self.client.login(username='other', password='password123')
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['title'], 'Rutina Export')
+        self.assertEqual(response.status_code, 404)
 
 
 class UserProfileFocusTests(TestCase):
@@ -1121,7 +1907,7 @@ class RateLimitTests(TestCase):
     def test_rate_limit_is_per_user(self):
         """Different users have separate rate limit buckets."""
         self._clear_cache()
-        other = User.objects.create_user(username='rl_other', password='password123')
+        User.objects.create_user(username='rl_other', password='password123')
         url = reverse('exercises:toggle_favorite')
         payload = json.dumps({'exercise_id': self.exercise.id})
 
@@ -1156,9 +1942,11 @@ class PushUtilsTests(TestCase):
     @patch('pywebpush.webpush')
     @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
     def test_send_push_cleans_expired_subscriptions(self, mock_webpush):
-        from exercises.push_utils import send_push_to_user
-        from pywebpush import WebPushException
         from unittest.mock import MagicMock
+
+        from pywebpush import WebPushException
+
+        from exercises.push_utils import send_push_to_user
 
         mock_response = MagicMock()
         mock_response.status_code = 410
@@ -1181,8 +1969,9 @@ class PushUtilsTests(TestCase):
     @patch('pywebpush.webpush')
     @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
     def test_send_workout_completed_push(self, mock_webpush):
-        from exercises.push_utils import send_push_to_user
         import json
+
+        from exercises.push_utils import send_push_to_user
         # Call synchronously to avoid thread timing issues
         send_push_to_user(self.user, {
             'title': '¡Entrenamiento completado! 💪',
@@ -1211,8 +2000,9 @@ class PushUtilsTests(TestCase):
     @patch('pywebpush.webpush')
     @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
     def test_send_inactivity_push(self, mock_webpush):
-        from exercises.push_utils import send_push_to_user
         import json
+
+        from exercises.push_utils import send_push_to_user
         send_push_to_user(self.user, {
             'title': 'Llevas 5 días sin entrenar 😟',
             'body': 'Vuelve a la acción. Una sesión corta cuenta.',
@@ -1228,8 +2018,9 @@ class PushUtilsTests(TestCase):
     @patch('pywebpush.webpush')
     @patch.object(django_settings, 'VAPID_PRIVATE_KEY', 'test-key')
     def test_send_new_pr_push(self, mock_webpush):
-        from exercises.push_utils import send_push_to_user
         import json
+
+        from exercises.push_utils import send_push_to_user
         send_push_to_user(self.user, {
             'title': '¡Nuevo récord personal! 🏆',
             'body': 'Nuevo peso máximo: 24 kg 🏋️',
