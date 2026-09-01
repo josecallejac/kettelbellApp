@@ -1,6 +1,7 @@
 """Progression and history helpers for exercise-level performance data."""
 
 from collections import OrderedDict
+from math import isfinite
 
 from django.utils import timezone
 
@@ -11,7 +12,13 @@ RPE_HARD_THRESHOLD = 9
 
 
 def _to_float(value):
-    return float(value) if value is not None else None
+    if value is None:
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return result if isfinite(result) else None
 
 
 def _profile_and_weights(user):
@@ -19,7 +26,7 @@ def _profile_and_weights(user):
     weights = profile.weights_list() if profile else []
     # El perfil histórico permite texto libre por compatibilidad; aquí solo
     # usamos pesos positivos y seguros para recomendaciones.
-    return profile, [weight for weight in weights if weight > 0]
+    return profile, weights
 
 
 def _profile_default_weight(profile, exercise, weights):
@@ -46,7 +53,7 @@ def _next_available_weight(weights, current):
 
 def _previous_available_weight(weights, current):
     previous = [weight for weight in weights if weight < current]
-    return previous[-1] if previous else (_nearest_available_weight(weights, current) if weights else current)
+    return previous[-1] if previous else None
 
 
 def _nearest_available_weight(weights, current):
@@ -116,12 +123,16 @@ def recommend_exercise_progression(user, exercise, latest=None):
         )
         status = 'profile' if suggested is not None else 'untracked'
     elif not latest.completed:
-        suggested = _previous_available_weight(weights, last_weight) if weights else last_weight
+        suggested = _previous_available_weight(weights, last_weight)
         reason = 'Sesión incompleta: mantén o baja un nivel para recuperar técnica.'
+        if suggested is None:
+            reason += ' No hay un peso menor disponible; practica tecnica sin carga.'
         status = 'recover'
     elif last_rpe is not None and last_rpe >= RPE_HARD_THRESHOLD:
-        suggested = _previous_available_weight(weights, last_weight) if weights else last_weight
+        suggested = _previous_available_weight(weights, last_weight)
         reason = 'RPE alto: reduce un nivel y prioriza la técnica.'
+        if suggested is None:
+            reason += ' No hay un peso menor disponible; practica tecnica sin carga.'
         status = 'deload'
     elif last_rpe is not None and last_rpe <= RPE_EASY_THRESHOLD:
         easy_sessions = sum(

@@ -6,9 +6,6 @@ services:
     restart: unless-stopped
     build: .
     command: gunicorn kettelbell.wsgi:application --bind 0.0.0.0:8000 --workers 3
-    mem_limit: 512m
-    pids_limit: 256
-    restart: unless-stopped
     ports:
       - "127.0.0.1:8001:8000"
     environment:
@@ -74,9 +71,6 @@ services:
     pids_limit: 256
     restart: unless-stopped
     image: postgres:16-alpine
-    mem_limit: 512m
-    pids_limit: 256
-    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kettlebell}
       POSTGRES_USER: ${POSTGRES_USER:-kettlebell}
@@ -86,7 +80,7 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kettlebell -d kettlebell"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -97,9 +91,6 @@ services:
     pids_limit: 128
     restart: unless-stopped
     image: adminer:4
-    mem_limit: 256m
-    pids_limit: 128
-    restart: unless-stopped
     ports:
       - "127.0.0.1:8081:8080"
     depends_on:

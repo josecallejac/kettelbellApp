@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from .models import PlannedSession, TrainingPlan, UserProfile, WorkoutLog
 from .utils import RoutineGenerator
+from .weights import normalize_available_weights
 
 PLAN_WEEKS = 4
 PLAN_DAYS = PLAN_WEEKS * 7
@@ -93,7 +94,9 @@ def create_training_plan(user, cleaned_data):
 
     profile.level = cleaned_data['level']
     profile.goal = cleaned_data['goal']
-    profile.available_weights = cleaned_data.get('available_weights', '').strip()
+    profile.available_weights = normalize_available_weights(
+        cleaned_data.get('available_weights', '')
+    )
     profile.plan_prompt_dismissed_at = None
     profile.save(update_fields=['level', 'goal', 'available_weights', 'plan_prompt_dismissed_at', 'updated_at'])
 
@@ -300,6 +303,7 @@ def prepare_planned_session(user, planned_session, regenerate=False, readiness=N
         plan_phase=session.phase,
         session_kind=session.session_kind,
         allow_weight_progression=not low_readiness,
+        apply_history_volume_adjustment=False,
     )
     workout = generator.generate()
     workout.is_plan_managed = True

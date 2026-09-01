@@ -842,6 +842,10 @@ class KettlebellE2ETestSuite(TestCase):
     def test_f8_t2_profile_weights_garbage(self):
         self.register_user('user_prof_garbage', 'u@example.com', 'SecurePass123!', 'SecurePass123!')
         response = self.update_profile('intermediate', 'general', '8, abc, 12, 16')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Cada peso debe ser un numero finito')
+
+        response = self.update_profile('intermediate', 'general', '8, 12, 16')
         self.assertEqual(response.status_code, 302)
         
         gen_res = self.generate_routine(30, 'intermediate', 'mix')

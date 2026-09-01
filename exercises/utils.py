@@ -25,6 +25,7 @@ class RoutineGenerator:
         plan_phase=None,
         session_kind='main',
         allow_weight_progression=True,
+        apply_history_volume_adjustment=True,
     ):
         self.user = user
         self.duration_minutes = int(duration_minutes)
@@ -34,6 +35,7 @@ class RoutineGenerator:
         self.plan_phase = plan_phase
         self.session_kind = session_kind
         self.allow_weight_progression = bool(allow_weight_progression)
+        self.apply_history_volume_adjustment = bool(apply_history_volume_adjustment)
         self.adaptation_note = ''
         profile = UserProfile.objects.filter(user=user).first()
         self.available_weights = profile.weights_list() if profile else []
@@ -77,10 +79,12 @@ class RoutineGenerator:
         
         # --- Warmup ---
         # Usually mobility or light cardio
+        compact_session = self.duration_minutes < 15
+        warmup_limit = 1 if compact_session else 2
         warmup_candidates = Exercise.objects.filter(
             category__in=['flexibility', 'cardio'],
             difficulty__in=['beginner'] # Warmup should vary easily
-        ).order_by('?')[:2]
+        ).order_by('?')[:warmup_limit]
         
         selected_exercises.extend([('warmup', ex) for ex in warmup_candidates])
         
@@ -90,9 +94,11 @@ class RoutineGenerator:
         main_time = max(10, self.duration_minutes - 10)
 
         # Approx 3-4 mins per exercise (including rest), ajustado por RPE reciente
-        num_main_exercises = max(
-            2,
-            main_time // 4 + self._rpe_volume_adjustment() + self.volume_modifier,
+        history_adjustment = self._rpe_volume_adjustment()
+        num_main_exercises = (
+            1
+            if compact_session
+            else max(2, main_time // 4 + history_adjustment + self.volume_modifier)
         )
 
         if self.focus == 'mix':
@@ -148,6 +154,8 @@ class RoutineGenerator:
 
     def _rpe_volume_adjustment(self):
         """-1, 0 o +1 ejercicios del bloque principal según el RPE reciente."""
+        if not self.apply_history_volume_adjustment:
+            return 0
         rpes = list(
             WorkoutLog.objects.filter(user=self.user, rpe__isnull=False)
             .order_by('-completed_at')
@@ -233,21 +241,37 @@ class RoutineGenerator:
                 if exercise.category != 'flexibility':
                     progression = recommend_exercise_progression(self.user, exercise)
                     weight = None
-                    if progression['history_count'] and progression['last_weight'] is not None:
+                    has_history_weight = (
+                        progression['history_count']
+                        and progression['last_weight'] is not None
+                    )
+                    if has_history_weight:
                         weight = (
                             progression['suggested_weight']
-                            if self.allow_weight_progression
+                            if (
+                                self.allow_weight_progression
+                                or progression['status'] in {'recover', 'deload'}
+                            )
                             else progression['last_weight']
                         )
-                        if not self.allow_weight_progression and self.available_weights:
+                        if (
+                            not self.allow_weight_progression
+                            and self.available_weights
+                            and weight is not None
+                        ):
                             weight = min(
                                 self.available_weights,
                                 key=lambda available: abs(available - weight),
                             )
-                    if weight is None:
+                    if weight is None and not has_history_weight:
                         # Sin un histórico específico, conserva la referencia
                         # del nivel elegido para esta rutina.
                         weight = self._suggested_weight(exercise.category)
+                    if (
+                        weight is None
+                        and progression['status'] in {'recover', 'deload'}
+                    ):
+                        notes += ' Sin carga: prioriza la tecnica.'
                     if weight is not None:
                         notes += f" Peso sugerido: {weight:g} kg."
 

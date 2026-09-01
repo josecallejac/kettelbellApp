@@ -5,6 +5,18 @@ from django.forms import inlineformset_factory, modelformset_factory
 from django.utils import timezone
 
 from .models import ExercisePerformance, PlannedSession, UserProfile, Workout, WorkoutExercise, WorkoutLog
+from .weights import invalid_weight_tokens, normalize_available_weights
+
+
+def _clean_weight_inventory(value):
+    invalid = invalid_weight_tokens(value)
+    if invalid:
+        labels = ', '.join(token or '(vacio)' for token in invalid)
+        raise forms.ValidationError(
+            'Cada peso debe ser un numero finito entre 0.1 y 200 kg. '
+            f'Revisa: {labels}.'
+        )
+    return normalize_available_weights(value)
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -44,6 +56,9 @@ class UserProfileForm(forms.ModelForm):
             'goal': forms.Select(attrs={'class': 'form-select'}),
             'available_weights': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Ej: 8, 12, 16'}),
         }
+
+    def clean_available_weights(self):
+        return _clean_weight_inventory(self.cleaned_data.get('available_weights', ''))
 
 
 class TrainingPlanForm(forms.Form):
@@ -138,6 +153,9 @@ class TrainingPlanForm(forms.Form):
         if value < timezone.localdate():
             raise forms.ValidationError('La fecha de inicio no puede estar en el pasado.')
         return value
+
+    def clean_available_weights(self):
+        return _clean_weight_inventory(self.cleaned_data.get('available_weights', ''))
 
     def clean(self):
         cleaned = super().clean()

@@ -7,6 +7,8 @@ from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.text import slugify
 
+from .weights import parse_available_weights
+
 
 def build_unique_slug(instance, source_text):
     """Genera un slug único para el modelo de la instancia a partir del texto dado."""
@@ -273,14 +275,7 @@ class UserProfile(models.Model):
 
     def weights_list(self):
         """Pesos disponibles como lista de números ordenada, ignorando basura."""
-        weights = []
-        for chunk in self.available_weights.split(','):
-            chunk = chunk.strip()
-            try:
-                weights.append(float(chunk))
-            except ValueError:
-                continue
-        return sorted(set(weights))
+        return parse_available_weights(self.available_weights)
 
 
 class TrainingPlan(models.Model):
