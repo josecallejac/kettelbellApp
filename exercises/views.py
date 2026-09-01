@@ -776,7 +776,7 @@ def progress_overview(request):
 def _get_user_history_log(user, log_id, for_update=False):
     queryset = user_log_queryset(user)
     if for_update:
-        queryset = queryset.select_for_update()
+        queryset = queryset.select_for_update(of=('self',))
     return get_object_or_404(queryset, pk=log_id)
 
 
