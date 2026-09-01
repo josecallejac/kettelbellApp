@@ -41,7 +41,7 @@
   --spacing-lg: 2rem;
   --spacing-xl: 3rem;
   --spacing-2xl: 4rem;
-  --hero-right-content-shift: 15rem;
+  --hero-right-content-shift: clamp(8rem, 10vw, 15rem);
   --hero-proof-shift-x: 6rem;
   --hero-proof-shift-y: 0rem;
 
@@ -1582,7 +1582,7 @@ body {
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1239px) {
   .nav-content {
     display: flex;
   }
