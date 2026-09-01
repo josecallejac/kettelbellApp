@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import Exercise, UserProfile, Workout, WorkoutExercise, WorkoutLog
+from .models import (
+    Exercise,
+    ExercisePerformance,
+    PlannedSession,
+    TrainingPlan,
+    UserProfile,
+    Workout,
+    WorkoutExercise,
+    WorkoutLog,
+)
 
 
 @admin.register(Exercise)
@@ -41,8 +50,8 @@ class WorkoutExerciseInline(admin.TabularInline):
 
 @admin.register(Workout)
 class WorkoutAdmin(admin.ModelAdmin):
-    list_display = ['title', 'created_by', 'difficulty', 'estimated_duration', 'is_public', 'created_at']
-    list_filter = ['difficulty', 'is_public']
+    list_display = ['title', 'created_by', 'difficulty', 'estimated_duration', 'is_public', 'is_plan_managed', 'created_at']
+    list_filter = ['difficulty', 'is_public', 'is_plan_managed']
     search_fields = ['title', 'description', 'created_by__username']
     prepopulated_fields = {'slug': ('title',)}
     inlines = [WorkoutExerciseInline]
@@ -54,8 +63,36 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ['user__username']
 
 
+@admin.register(TrainingPlan)
+class TrainingPlanAdmin(admin.ModelAdmin):
+    list_display = ['user', 'goal', 'sessions_per_week', 'start_date', 'end_date', 'status', 'reminders_enabled']
+    list_filter = ['goal', 'level', 'status', 'reminders_enabled']
+    search_fields = ['user__username']
+
+
+@admin.register(PlannedSession)
+class PlannedSessionAdmin(admin.ModelAdmin):
+    list_display = [
+        'plan', 'sequence', 'scheduled_date', 'focus', 'phase', 'status', 'workout',
+        'energy_level', 'pain_level', 'available_minutes', 'readiness_checked_at',
+    ]
+    list_filter = ['status', 'focus', 'phase', 'scheduled_date']
+    search_fields = ['plan__user__username', 'adaptation_reason']
+
+
 @admin.register(WorkoutLog)
 class WorkoutLogAdmin(admin.ModelAdmin):
-    list_display = ['user', 'workout', 'completed_at', 'duration_minutes', 'kettlebell_weight', 'rpe']
+    list_display = ['user', 'workout', 'completed_at', 'edited_at', 'duration_minutes', 'kettlebell_weight', 'rpe']
     list_filter = ['completed_at', 'rpe']
     search_fields = ['user__username', 'workout__title', 'notes']
+
+
+@admin.register(ExercisePerformance)
+class ExercisePerformanceAdmin(admin.ModelAdmin):
+    list_display = [
+        'user', 'exercise', 'workout_log', 'completed',
+        'sets_completed', 'reps_completed', 'weight', 'rpe', 'created_at',
+    ]
+    list_filter = ['completed', 'rpe', 'created_at']
+    search_fields = ['user__username', 'exercise__name', 'notes']
+    readonly_fields = ['created_at']

@@ -1,11 +1,12 @@
 import json
 import os
 from html.parser import HTMLParser
-from django.core.cache import cache
-from django.test import TestCase, Client
-from django.urls import reverse
-from django.core.management import call_command
+
 from django.apps import apps
+from django.core.cache import cache
+from django.core.management import call_command
+from django.test import Client, TestCase
+from django.urls import reverse
 
 
 class SimpleHTMLParser(HTMLParser):
@@ -449,7 +450,7 @@ class KettlebellE2ETestSuite(TestCase):
     def test_f4_t1_taxonomy_has_exercises(self):
         response = self.client.get(reverse('exercises:category_detail', kwargs={'category': 'strength'}))
         parser = self.parse_html(response.content.decode('utf-8'))
-        detail_links = [l for l in parser.links if '/exercise/' in l]
+        detail_links = [link for link in parser.links if '/exercise/' in link]
         self.assertTrue(len(detail_links) > 0)
 
     def test_f4_t2_invalid_category_slug(self):
@@ -671,7 +672,7 @@ class KettlebellE2ETestSuite(TestCase):
         response = self.generate_routine(30, 'intermediate', 'mix')
         detail_response = self.client.get(response.url)
         parser = self.parse_html(detail_response.content.decode('utf-8'))
-        exercise_links = [l for l in parser.links if '/exercise/' in l]
+        exercise_links = [link for link in parser.links if '/exercise/' in link]
         self.assertTrue(len(exercise_links) > 0)
 
     def test_f7_t1_routine_cooldown_warmup(self):
@@ -841,6 +842,10 @@ class KettlebellE2ETestSuite(TestCase):
     def test_f8_t2_profile_weights_garbage(self):
         self.register_user('user_prof_garbage', 'u@example.com', 'SecurePass123!', 'SecurePass123!')
         response = self.update_profile('intermediate', 'general', '8, abc, 12, 16')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Cada peso debe ser un numero finito')
+
+        response = self.update_profile('intermediate', 'general', '8, 12, 16')
         self.assertEqual(response.status_code, 302)
         
         gen_res = self.generate_routine(30, 'intermediate', 'mix')

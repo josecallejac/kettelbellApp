@@ -41,7 +41,7 @@
   --spacing-lg: 2rem;
   --spacing-xl: 3rem;
   --spacing-2xl: 4rem;
-  --hero-right-content-shift: 15rem;
+  --hero-right-content-shift: clamp(8rem, 10vw, 15rem);
   --hero-proof-shift-x: 6rem;
   --hero-proof-shift-y: 0rem;
 
@@ -1582,7 +1582,7 @@ body {
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1239px) {
   .nav-content {
     display: flex;
   }
@@ -2361,3 +2361,186 @@ body {
 .tile-desc { font-size: 0.75rem; color: var(--text-muted); }
 .generator-submit { width: 100%; justify-content: center; }
 @media (max-width: 640px) { .option-grid.cols-4 { grid-template-columns: repeat(2, 1fr); } .option-grid.cols-3 { grid-template-columns: 1fr; } }
+
+/* ========== Exercise-level progression ========== */
+.exercise-progression { display: flex; flex-direction: column; gap: 0.25rem; margin-top: var(--spacing-md); padding: 0.85rem 1rem; border-left: 3px solid var(--primary-color); background: var(--bg-tertiary); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.progression-kicker { color: var(--primary-light); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.exercise-progression strong { color: var(--text-primary); font-size: 1rem; }
+.exercise-progression span:last-child { color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; }
+.exercise-metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-sm); margin-top: var(--spacing-md); }
+.exercise-metrics-grid .metrics-field { gap: 0.35rem; }
+.exercise-metrics-grid .metrics-label { font-size: 0.7rem; }
+.exercise-rpe-input { appearance: auto; }
+.exercise-progress-card { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.progress-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-sm); }
+.progress-card-heading .stats-title { margin: 0.2rem 0 0; }
+.progress-session-count { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
+.progress-recommendation { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.85rem; background: var(--bg-tertiary); border-radius: var(--radius-lg); }
+.progress-recommendation strong { color: var(--primary-light); font-size: 1.25rem; }
+.progress-recommendation span:last-child { color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; }
+.progress-stats-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-sm); }
+.progress-stats-row div { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+.progress-stats-row span { color: var(--text-muted); font-size: 0.72rem; }
+.progress-stats-row strong { color: var(--text-primary); font-size: 0.95rem; }
+.exercise-history-list { display: flex; flex-direction: column; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+.exercise-history-list li { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 0.4rem; color: var(--text-muted); font-size: 0.75rem; align-items: center; }
+.exercise-history-list strong { color: var(--text-primary); }
+.progress-empty-copy { color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; margin: 0; }
+.exercise-progress-dashboard { margin: var(--spacing-2xl) 0; }
+.exercise-progress-dashboard .section-heading-row { margin-bottom: var(--spacing-md); }
+.exercise-progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--spacing-md); }
+.exercise-progress-item { display: flex; flex-direction: column; gap: 0.55rem; padding: var(--spacing-md); color: var(--text-primary); text-decoration: none; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); transition: transform var(--transition-fast), border-color var(--transition-fast); }
+.exercise-progress-item:hover { transform: translateY(-2px); border-color: var(--primary-color); }
+.exercise-progress-item-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-sm); }
+.exercise-progress-item-heading strong { font-size: 0.95rem; }
+.exercise-progress-item-heading span, .exercise-progress-item small { color: var(--text-muted); font-size: 0.75rem; }
+.exercise-progress-metrics { display: flex; flex-wrap: wrap; gap: 0.45rem; color: var(--text-secondary); font-size: 0.76rem; }
+.exercise-progress-next { color: var(--primary-light); font-weight: 700; }
+.exercise-progress-item small { line-height: 1.4; }
+@media (max-width: 640px) {
+  .exercise-metrics-grid { grid-template-columns: 1fr; }
+  .progress-card-heading { flex-direction: column; }
+}
+
+/* Adaptive four-week plan */
+.plan-section { padding: var(--spacing-2xl) 0 4rem; }
+.plan-landing-invite { padding-top: var(--spacing-lg); }
+.plan-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-lg); margin-bottom: var(--spacing-xl); }
+.plan-header h1 { margin: 0.25rem 0 0.45rem; }
+.plan-header-actions, .planned-session-actions, .push-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); }
+.plan-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-xl); }
+.plan-invite-banner, .plan-dashboard-card, .plan-today-card, .plan-complete-card { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-lg); margin: var(--spacing-lg) 0; padding: var(--spacing-lg); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-xl); }
+.readiness-card { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr); gap: var(--spacing-xl); margin: var(--spacing-lg) 0; padding: var(--spacing-lg); background: linear-gradient(135deg, rgba(34, 197, 94, 0.13), var(--bg-secondary)); border: 1px solid rgba(34, 197, 94, 0.45); border-radius: var(--radius-xl); }
+.readiness-copy h2 { margin: 0.25rem 0 0.5rem; }
+.readiness-copy p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.readiness-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-md); align-items: end; }
+.readiness-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.draft-recovery-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin: var(--spacing-lg) 0; padding: var(--spacing-md) var(--spacing-lg); background: var(--bg-secondary); border: 1px solid rgba(245, 158, 11, 0.6); border-radius: var(--radius-lg); }
+.draft-recovery-banner span { display: block; margin-top: 0.25rem; color: var(--text-secondary); font-size: 0.82rem; }
+.draft-recovery-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.plan-invite-banner { border-color: rgba(99, 102, 241, 0.5); }
+.plan-dashboard-card { background: linear-gradient(135deg, rgba(99,102,241,0.17), var(--bg-secondary)); }
+.plan-dashboard-card h2, .plan-today-card h2 { margin: 0.25rem 0; }
+.plan-dashboard-card p, .plan-today-card p, .plan-complete-card { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.plan-today-card { border-color: var(--primary-color); background: linear-gradient(135deg, rgba(99,102,241,0.2), var(--bg-secondary)); }
+.plan-today-card.is-overdue { border-color: #f59e0b; }
+.plan-complete-card { justify-content: flex-start; }
+.plan-calendar { margin-top: var(--spacing-2xl); }
+.planned-session-card { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: var(--spacing-md); margin: var(--spacing-sm) 0; padding: var(--spacing-md); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.planned-session-card.is-today { border-color: var(--primary-color); box-shadow: 0 0 0 1px rgba(99,102,241,0.15); }
+.planned-session-card.status-completed { opacity: 0.78; }
+.planned-session-card.status-skipped { opacity: 0.55; }
+.planned-session-date { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--border-color); }
+.planned-session-date span { color: var(--text-muted); font-size: 0.7rem; }
+.planned-session-date strong { margin-top: 0.3rem; font-size: 1rem; line-height: 1.35; }
+.planned-session-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.planned-session-title h3 { margin: 0; font-size: 1rem; }
+.session-status { margin-left: auto; color: var(--text-muted); font-size: 0.75rem; }
+.planned-session-content p { margin: 0.45rem 0 0.7rem; color: var(--text-secondary); font-size: 0.82rem; line-height: 1.45; }
+.readiness-summary { display: block; margin: -0.25rem 0 0.7rem; color: var(--text-muted); font-size: 0.75rem; }
+.reschedule-form { display: flex; gap: 0.35rem; align-items: center; }
+.reschedule-form input { min-height: 34px; padding: 0.35rem 0.5rem; color: var(--text-primary); background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+.plan-form .form-card { margin-bottom: var(--spacing-lg); }
+.plan-form .field-error, .plan-form .errorlist { color: #fca5a5; font-size: 0.78rem; }
+.weekday-grid ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.weekday-grid li { display: flex; align-items: center; gap: 0.35rem; }
+.weekday-grid label { color: var(--text-secondary); font-size: 0.85rem; }
+.plan-welcome { color: var(--primary-light); font-size: 0.9rem; }
+.session-plan-context { margin: -0.5rem 0 1rem; color: var(--text-muted); font-size: 0.8rem; }
+@media (max-width: 720px) {
+  .plan-header, .plan-invite-banner, .plan-dashboard-card, .plan-today-card { align-items: flex-start; flex-direction: column; }
+  .readiness-card { grid-template-columns: 1fr; }
+  .readiness-form { grid-template-columns: 1fr; }
+  .readiness-actions { grid-column: auto; }
+  .draft-recovery-banner { align-items: flex-start; flex-direction: column; }
+  .planned-session-card { grid-template-columns: 64px minmax(0, 1fr); }
+  .planned-session-actions { align-items: stretch; }
+  .reschedule-form { width: 100%; }
+  .reschedule-form input { flex: 1; }
+  .weekday-grid ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session-status { margin-left: 0; width: 100%; }
+}
+
+/* History and personal progress */
+.progress-section { padding: var(--spacing-2xl) 0 4rem; }
+.progress-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-lg); text-align: left; }
+.progress-page-header h1 { margin: 0.25rem 0 0.45rem; }
+.back-link { display: inline-block; margin-bottom: 0.8rem; color: var(--primary-light); font-size: 0.82rem; font-weight: 700; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+.progress-review-card, .progress-trend-card, .progress-detail-card { margin: var(--spacing-lg) 0; padding: var(--spacing-lg); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-xl); }
+.progress-review-card { background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), var(--bg-secondary)); }
+.progress-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-lg); }
+.progress-review-heading h2 { margin: 0.25rem 0 0.35rem; }
+.progress-review-heading p { margin: 0; color: var(--text-secondary); }
+.goal-highlight { min-width: 160px; padding: 0.85rem 1rem; text-align: right; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.goal-highlight span, .goal-highlight small { display: block; color: var(--text-muted); font-size: 0.72rem; }
+.goal-highlight strong { display: inline-block; margin: 0.2rem 0; color: var(--primary-light); font-size: 1.55rem; }
+.goal-highlight .goal-highlight-delta { color: var(--text-secondary); }
+.progress-summary-grid { margin: var(--spacing-lg) 0 0; }
+.progress-review-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); margin-top: var(--spacing-lg); }
+.progress-insight { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.progress-trend-card .section-heading-row, .history-section .section-heading-row { margin-bottom: var(--spacing-md); }
+.progress-trend-chart { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); align-items: end; gap: var(--spacing-sm); min-height: 150px; padding-top: var(--spacing-lg); border-bottom: 1px solid var(--border-color); }
+.progress-trend-slot { display: flex; min-width: 0; height: 130px; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.35rem; }
+.progress-trend-count { color: var(--text-secondary); font-size: 0.75rem; font-weight: 700; }
+.progress-trend-bar { width: min(34px, 70%); min-height: 2px; background: var(--gradient-primary); border-radius: 0.45rem 0.45rem 0 0; }
+.progress-trend-label { color: var(--text-muted); font-size: 0.7rem; }
+.history-section { margin-top: var(--spacing-2xl); }
+.history-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(180px, 1.4fr) auto; align-items: end; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg); padding: var(--spacing-md); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.history-filters .form-group { margin: 0; }
+.history-filter-actions { display: flex; align-items: center; gap: 0.35rem; }
+.history-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.history-card { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-lg); padding: var(--spacing-md) var(--spacing-lg); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.history-card-main { min-width: 0; flex: 1; }
+.activity-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-left: auto; }
+.history-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-md); }
+.history-card-heading h3 { margin: 0.2rem 0 0; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+.history-card-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; }
+.history-card-tags .tag { white-space: nowrap; }
+.history-card-metrics { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.55rem; color: var(--text-secondary); font-size: 0.78rem; }
+.history-empty-state { margin-top: var(--spacing-md); text-align: center; }
+.history-empty-state h3 { margin-top: 0; }
+.history-empty-state p { color: var(--text-secondary); }
+.history-note { margin-top: var(--spacing-md); padding: var(--spacing-md); background: var(--bg-tertiary); border-left: 3px solid var(--primary-color); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.history-note p { margin: 0.35rem 0 0; color: var(--text-secondary); white-space: pre-wrap; }
+.history-edited-label { margin: var(--spacing-md) 0 0; color: var(--text-muted); font-size: 0.75rem; }
+.performance-history-list, .performance-edit-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.performance-history-card, .performance-edit-card { padding: var(--spacing-md); background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.performance-history-card.is-incomplete { border-left: 3px solid #f59e0b; }
+.performance-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-md); }
+.performance-history-heading h3 { margin: 0; font-size: 1rem; }
+.performance-history-heading h3 a { color: var(--text-primary); text-decoration: none; }
+.performance-history-heading h3 a:hover { color: var(--primary-light); }
+.performance-history-heading > div > span { color: var(--text-muted); font-size: 0.75rem; }
+.performance-history-metrics { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 0.65rem; color: var(--text-secondary); font-size: 0.78rem; }
+.history-note-inline { margin: 0.65rem 0 0; color: var(--text-muted); font-size: 0.8rem; }
+.legacy-history-notice, .history-edit-notice { margin: var(--spacing-md) 0; padding: var(--spacing-md); color: var(--text-secondary); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius-lg); line-height: 1.5; }
+.history-edit-form .form-card { margin-bottom: var(--spacing-lg); }
+.exercise-edit-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--spacing-sm); margin-top: var(--spacing-md); }
+.performance-edit-card .checkbox-group { white-space: nowrap; }
+.performance-edit-card .form-group { margin-bottom: var(--spacing-sm); }
+.performance-edit-card .form-group:last-child { margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .history-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-search-field { grid-column: span 2; }
+  .history-filter-actions { grid-column: span 2; }
+  .exercise-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .progress-page-header, .progress-review-heading, .progress-review-footer, .history-card { align-items: flex-start; flex-direction: column; }
+  .progress-page-header .btn, .history-card > .btn { width: 100%; justify-content: center; }
+  .goal-highlight { width: 100%; text-align: left; }
+  .progress-trend-chart { gap: 0.25rem; }
+  .progress-trend-bar { width: 70%; }
+  .history-filters { grid-template-columns: 1fr; }
+  .history-search-field, .history-filter-actions { grid-column: auto; }
+  .history-filter-actions { align-items: stretch; flex-direction: column; }
+  .history-filter-actions .btn { width: 100%; justify-content: center; }
+  .history-card-heading { flex-direction: column; }
+  .history-card-tags { justify-content: flex-start; }
+  .history-card-heading h3 { white-space: normal; }
+  .activity-actions { margin-left: 0; }
+  .exercise-edit-grid { grid-template-columns: 1fr; }
+}

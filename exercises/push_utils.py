@@ -30,8 +30,9 @@ def send_push_to_user(user, payload):
         logger.debug('VAPID_PRIVATE_KEY not set, skipping push')
         return 0
 
-    from .models import PushSubscription
     from pywebpush import WebPushException, webpush
+
+    from .models import PushSubscription
 
     subscriptions = PushSubscription.objects.filter(user=user)
     if not subscriptions.exists():

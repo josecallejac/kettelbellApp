@@ -38,7 +38,7 @@
                         <button class="btn btn-outline btn-sm" onclick="KBShare.loadAndShare('{{ workout.slug }}')">📤 Compartir</button>
                         <button class="btn btn-outline btn-sm" onclick="KBShare.loadAndDownload('{{ workout.slug }}')">🖼️ Descargar imagen</button>
                     </div>
-                    {% if user.is_authenticated and user == workout.created_by %}
+                    {% if user.is_authenticated and user == workout.created_by and not workout.is_plan_managed %}
                     <div class="owner-actions">
                         <a href="{% url 'exercises:workout_edit' workout.slug %}" class="btn btn-sm btn-outline">✏️ Editar</a>
                         <form method="post" action="{% url 'exercises:workout_delete' workout.slug %}"

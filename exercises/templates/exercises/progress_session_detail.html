@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} · Historial - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="progress-section">
+    <div class="container container-sm">
+        <header class="section-header progress-page-header">
+            <div>
+                <a class="back-link" href="{% url 'exercises:progress_overview' %}">← Volver al historial</a>
+                <span class="detail-kicker">Sesión completada</span>
+                <h1 class="gradient-text">{{ title }}</h1>
+                <p class="section-subtitle">{{ log.completed_at|date:'l d \d\e F \d\e Y · H:i' }}{% if difficulty %} · {{ difficulty }}{% endif %}</p>
+            </div>
+            <a class="btn btn-primary" href="{% url 'exercises:progress_session_edit' log.id %}">Corregir datos</a>
+        </header>
+
+        <div class="progress-detail-card">
+            <div class="stats-grid progress-summary-grid">
+                <div class="stat-card"><span class="stat-icon">⏱️</span><div class="stat-info"><span class="stat-value">{% if log.duration_minutes %}{{ log.duration_minutes }}{% else %}—{% endif %}</span><span class="stat-label">Minutos</span></div></div>
+                <div class="stat-card"><span class="stat-icon">💪</span><div class="stat-info"><span class="stat-value">{% if metrics.rpe is not None %}{{ metrics.rpe }}{% else %}—{% endif %}</span><span class="stat-label">RPE</span></div></div>
+                <div class="stat-card"><span class="stat-icon">🏋️</span><div class="stat-info"><span class="stat-value">{% if metrics.max_weight is not None %}{{ metrics.max_weight|floatformat:-1 }}{% else %}—{% endif %}</span><span class="stat-label">Peso máximo (kg)</span></div></div>
+                <div class="stat-card"><span class="stat-icon">📦</span><div class="stat-info"><span class="stat-value">{% if metrics.volume is not None %}{{ metrics.volume|floatformat:-1 }}{% else %}—{% endif %}</span><span class="stat-label">Volumen (kg)</span></div></div>
+            </div>
+
+            {% if planned_session %}
+            <p class="session-plan-context">Sesión {{ planned_session.sequence }} del plan · Semana {{ planned_session.week_number }} · {{ planned_session.phase|title }} · <a href="{% url 'exercises:plan_detail' planned_session.plan_id %}">Ver plan</a></p>
+            {% endif %}
+            {% if log.notes %}<div class="history-note"><strong>Notas</strong><p>{{ log.notes }}</p></div>{% endif %}
+            {% if log.edited_at %}<p class="history-edited-label">Última edición: {{ log.edited_at|date:'d/m/Y · H:i' }}</p>{% endif %}
+        </div>
+
+        <section class="progress-detail-card" aria-labelledby="performance-title">
+            <div class="section-heading-row">
+                <div>
+                    <span class="detail-kicker">Detalle</span>
+                    <h2 id="performance-title" class="column-title">Rendimiento por ejercicio</h2>
+                </div>
+                {% if metrics.has_details %}<span class="section-pill">{{ metrics.completed_exercises }}/{{ metrics.exercise_count }} completados</span>{% endif %}
+            </div>
+
+            {% if performances %}
+            <div class="performance-history-list">
+                {% for item in performances %}
+                <article class="performance-history-card {% if not item.performance.completed %}is-incomplete{% endif %}">
+                    <div class="performance-history-heading">
+                        <div>
+                            <h3>{% if item.performance.exercise %}<a href="{% url 'exercises:detail' item.performance.exercise.slug %}">{{ item.exercise_name }}</a>{% else %}{{ item.exercise_name }}{% endif %}</h3>
+                            {% if item.category %}<span>{{ item.category }}</span>{% endif %}
+                        </div>
+                        <span class="session-status">{% if item.performance.completed %}Completado{% else %}Parcial{% endif %}</span>
+                    </div>
+                    <div class="performance-history-metrics">
+                        <span>Objetivo: {{ item.target_sets|default:'—' }} series{% if item.target_reps %} · {{ item.target_reps }}{% endif %}</span>
+                        <span>Real: {{ item.performance.sets_completed }} series{% if item.performance.reps_completed is not None %} · {{ item.performance.reps_completed }} reps{% endif %}</span>
+                        <span>{% if item.performance.weight %}{{ item.performance.weight|floatformat:-1 }} kg{% else %}Sin peso{% endif %}</span>
+                        <span>{% if item.performance.rpe %}RPE {{ item.performance.rpe }}{% else %}RPE —{% endif %}</span>
+                        {% if item.volume is not None %}<span>Volumen {{ item.volume|floatformat:-1 }} kg</span>{% endif %}
+                    </div>
+                    {% if item.performance.notes %}<p class="history-note-inline">{{ item.performance.notes }}</p>{% endif %}
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="legacy-history-notice">
+                Este registro es anterior al detalle por ejercicio. Puedes corregir sus métricas generales; las próximas sesiones guardarán el desglose completo.
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

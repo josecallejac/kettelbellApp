@@ -1,9 +1,13 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.text import slugify
+
+from .weights import parse_available_weights
 
 
 def build_unique_slug(instance, source_text):
@@ -180,6 +184,12 @@ class Workout(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     is_public = models.BooleanField(default=True, verbose_name='Es público')
+    is_plan_managed = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name='Gestionado por un plan',
+        help_text='Las rutinas internas de un plan no se muestran en la biblioteca personal.',
+    )
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -245,6 +255,11 @@ class UserProfile(models.Model):
         verbose_name='Kettlebells disponibles (kg)',
         help_text='Separadas por comas, ej: 8, 12, 16',
     )
+    plan_prompt_dismissed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Aviso de plan descartado',
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -260,20 +275,196 @@ class UserProfile(models.Model):
 
     def weights_list(self):
         """Pesos disponibles como lista de números ordenada, ignorando basura."""
-        weights = []
-        for chunk in self.available_weights.split(','):
-            chunk = chunk.strip()
-            try:
-                weights.append(float(chunk))
-            except ValueError:
-                continue
-        return sorted(set(weights))
+        return parse_available_weights(self.available_weights)
+
+
+class TrainingPlan(models.Model):
+    """Ciclo guiado de cuatro semanas para un usuario."""
+
+    STATUS_CHOICES = [
+        ('active', 'Activo'),
+        ('paused', 'Pausado'),
+        ('completed', 'Completado'),
+        ('cancelled', 'Cancelado'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='training_plans',
+        verbose_name='Usuario',
+    )
+    goal = models.CharField(
+        max_length=20,
+        choices=UserProfile.GOAL_CHOICES,
+        default='general',
+        verbose_name='Objetivo',
+    )
+    level = models.CharField(
+        max_length=20,
+        choices=Exercise.DIFFICULTY_CHOICES,
+        default='beginner',
+        verbose_name='Nivel',
+    )
+    sessions_per_week = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(2), MaxValueValidator(5)],
+        verbose_name='Sesiones por semana',
+    )
+    session_duration = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(10), MaxValueValidator(120)],
+        verbose_name='Duración de sesión (minutos)',
+    )
+    preferred_weekdays = models.JSONField(
+        default=list,
+        verbose_name='Días preferidos',
+        help_text='Lista de días ISO: 0=lunes, 6=domingo.',
+    )
+    start_date = models.DateField(verbose_name='Inicio')
+    end_date = models.DateField(verbose_name='Fin')
+    reminders_enabled = models.BooleanField(default=False, verbose_name='Recordatorios activos')
+    reminder_time = models.TimeField(null=True, blank=True, verbose_name='Hora del recordatorio')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='active', db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Plan de entrenamiento'
+        verbose_name_plural = 'Planes de entrenamiento'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status__in=['active', 'paused']),
+                name='unique_open_training_plan_per_user',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Plan de {self.user.username} ({self.start_date:%d/%m/%Y})"
+
+
+class PlannedSession(models.Model):
+    """Sesión del calendario; la rutina concreta se materializa al iniciarla."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('completed', 'Completada'),
+        ('skipped', 'Omitida'),
+    ]
+
+    ENERGY_CHOICES = [
+        (1, '1 - Muy baja'),
+        (2, '2 - Baja'),
+        (3, '3 - Normal'),
+        (4, '4 - Buena'),
+        (5, '5 - Muy buena'),
+    ]
+    PAIN_CHOICES = [
+        ('none', 'Sin dolor'),
+        ('mild', 'Molestia leve'),
+        ('stop', 'Dolor: detener'),
+    ]
+
+    plan = models.ForeignKey(
+        TrainingPlan,
+        on_delete=models.CASCADE,
+        related_name='sessions',
+        verbose_name='Plan',
+    )
+    sequence = models.PositiveSmallIntegerField(verbose_name='Orden')
+    week_number = models.PositiveSmallIntegerField(verbose_name='Semana')
+    scheduled_date = models.DateField(verbose_name='Fecha programada')
+    focus = models.CharField(max_length=20, verbose_name='Enfoque')
+    session_kind = models.CharField(max_length=20, default='main', verbose_name='Tipo de sesión')
+    phase = models.CharField(max_length=20, default='base', verbose_name='Fase')
+    estimated_duration = models.PositiveSmallIntegerField(verbose_name='Duración estimada')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending', db_index=True)
+    energy_level = models.PositiveSmallIntegerField(
+        choices=ENERGY_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name='Energía antes de entrenar',
+    )
+    pain_level = models.CharField(
+        max_length=5,
+        choices=PAIN_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name='Dolor o molestia',
+    )
+    available_minutes = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(10), MaxValueValidator(120)],
+        null=True,
+        blank=True,
+        verbose_name='Minutos disponibles',
+    )
+    readiness_checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Chequeo de preparación',
+    )
+    workout = models.OneToOneField(
+        Workout,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planned_session',
+        verbose_name='Rutina generada',
+    )
+    adaptation_reason = models.CharField(max_length=300, blank=True, default='', verbose_name='Motivo del ajuste')
+    completed_at = models.DateTimeField(null=True, blank=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Sesión planificada'
+        verbose_name_plural = 'Sesiones planificadas'
+        ordering = ['scheduled_date', 'sequence']
+        constraints = [
+            models.UniqueConstraint(fields=['plan', 'sequence'], name='unique_plan_session_sequence'),
+            models.UniqueConstraint(fields=['plan', 'scheduled_date'], name='unique_plan_session_date'),
+        ]
+        indexes = [
+            models.Index(fields=['plan', 'scheduled_date', 'status']),
+            models.Index(fields=['scheduled_date', 'status', 'reminder_sent_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.plan} - sesión {self.sequence}"
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+
+        return self.status == 'pending' and self.scheduled_date < timezone.localdate()
 
 
 class WorkoutLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workout_logs')
-    workout = models.ForeignKey(Workout, on_delete=models.CASCADE)
+    workout = models.ForeignKey(Workout, on_delete=models.SET_NULL, null=True, blank=True)
+    planned_session = models.OneToOneField(
+        'PlannedSession',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='completed_log',
+        verbose_name='Sesión planificada',
+    )
+    workout_title_snapshot = models.CharField(max_length=200, blank=True, default='')
+    workout_difficulty_snapshot = models.CharField(max_length=20, blank=True, default='')
+    workout_duration_snapshot = models.PositiveIntegerField(null=True, blank=True)
     completed_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Última edición',
+    )
     duration_minutes = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -293,14 +484,136 @@ class WorkoutLog(models.Model):
         verbose_name='Esfuerzo percibido (RPE 1-10)',
     )
     notes = models.CharField(max_length=300, blank=True, default='', verbose_name='Notas')
+    client_session_id = models.UUIDField(
+        null=True,
+        blank=True,
+        verbose_name='Identificador de sesión del cliente',
+        help_text='Evita duplicar una sesión cuando el navegador reintenta el guardado.',
+    )
     
     class Meta:
         ordering = ['-completed_at']
         verbose_name = 'Registro de Entrenamiento'
         verbose_name_plural = 'Registros de Entrenamiento'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'client_session_id'],
+                condition=models.Q(client_session_id__isnull=False),
+                name='unique_user_client_session',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.workout_id and self.workout:
+            self.workout_title_snapshot = self.workout_title_snapshot or self.workout.title
+            self.workout_difficulty_snapshot = self.workout_difficulty_snapshot or self.workout.difficulty
+            self.workout_duration_snapshot = self.workout_duration_snapshot or self.workout.estimated_duration
+        super().save(*args, **kwargs)
         
     def __str__(self):
-        return f"{self.user.username} - {self.workout.title} ({self.completed_at.strftime('%Y-%m-%d')})"
+        title = self.workout.title if self.workout else self.workout_title_snapshot or 'Rutina eliminada'
+        return f"{self.user.username} - {title} ({self.completed_at.strftime('%Y-%m-%d')})"
+
+
+class ExercisePerformance(models.Model):
+    """Métricas de un ejercicio dentro de una sesión completada.
+
+    ``WorkoutLog`` conserva las métricas agregadas de la rutina para no romper
+    datos existentes. Este modelo permite registrar el progreso real de cada
+    ejercicio sin trasladar el peso de un movimiento a otro.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='exercise_performances',
+        verbose_name='Usuario',
+    )
+    workout_log = models.ForeignKey(
+        WorkoutLog,
+        on_delete=models.CASCADE,
+        related_name='exercise_performances',
+        verbose_name='Sesión',
+    )
+    workout_exercise = models.ForeignKey(
+        WorkoutExercise,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='performances',
+        verbose_name='Ejercicio de la rutina',
+    )
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='performance_logs',
+        verbose_name='Ejercicio',
+    )
+    completed = models.BooleanField(default=True, verbose_name='Completado')
+    sets_completed = models.PositiveSmallIntegerField(default=0, verbose_name='Series completadas')
+    reps_completed = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Repeticiones completadas',
+    )
+    weight = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0.1')), MaxValueValidator(Decimal('200'))],
+        verbose_name='Peso usado (kg)',
+    )
+    rpe = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='RPE del ejercicio',
+    )
+    notes = models.CharField(max_length=300, blank=True, default='', verbose_name='Notas')
+    exercise_name_snapshot = models.CharField(max_length=200, blank=True, default='')
+    exercise_category_snapshot = models.CharField(max_length=20, blank=True, default='')
+    target_sets = models.PositiveSmallIntegerField(null=True, blank=True)
+    target_reps = models.CharField(max_length=50, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-workout_log__completed_at', '-created_at']
+        verbose_name = 'Rendimiento por ejercicio'
+        verbose_name_plural = 'Rendimientos por ejercicio'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['workout_log', 'workout_exercise'],
+                condition=models.Q(workout_exercise__isnull=False),
+                name='unique_performance_per_workout_exercise',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'exercise', '-created_at']),
+            models.Index(fields=['workout_log', 'exercise']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.exercise_id and self.exercise:
+            self.exercise_name_snapshot = self.exercise_name_snapshot or self.exercise.name
+            self.exercise_category_snapshot = self.exercise_category_snapshot or self.exercise.category
+        if self.workout_exercise_id and self.workout_exercise:
+            self.target_sets = self.target_sets if self.target_sets is not None else self.workout_exercise.sets
+            self.target_reps = self.target_reps or self.workout_exercise.reps
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        exercise_name = self.exercise.name if self.exercise else self.exercise_name_snapshot or 'Ejercicio eliminado'
+        return f"{self.user.username} - {exercise_name}"
+
+    @property
+    def volume(self):
+        """Volumen aproximado (series × repeticiones × peso), si está disponible."""
+        if not self.sets_completed or not self.reps_completed or self.weight is None:
+            return None
+        return float(self.sets_completed * self.reps_completed * self.weight)
 
 
 class PushSubscription(models.Model):

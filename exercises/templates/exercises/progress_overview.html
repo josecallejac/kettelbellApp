@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+
+{% block title %}Historial y progreso - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="progress-section">
+    <div class="container">
+        <header class="section-header progress-page-header">
+            <div>
+                <span class="detail-kicker">Tu evolución</span>
+                <h1 class="gradient-text">Historial y progreso</h1>
+                <p class="section-subtitle">Revisa lo que hiciste, corrige una métrica y entiende cómo avanzar.</p>
+            </div>
+            <a class="btn btn-outline" href="{% url 'exercises:dashboard' %}">Volver al panel</a>
+        </header>
+
+        <section class="progress-review-card" aria-labelledby="weekly-review-title">
+            <div class="progress-review-heading">
+                <div>
+                    <span class="detail-kicker">Revisión semanal</span>
+                    <h2 id="weekly-review-title">Del {{ review.current_start|date:'d/m' }} al {{ review.current_end|date:'d/m' }}</h2>
+                    <p>Comparada con los mismos días de la semana anterior.</p>
+                </div>
+                <div class="goal-highlight">
+                    <span>{{ review.goal_highlight.label }}</span>
+                    <strong>{% if review.goal_highlight.value is not None %}{{ review.goal_highlight.value_display }}{% else %}—{% endif %}</strong>
+                    <small>{{ review.goal_highlight.unit }}</small>
+                    {% if review.goal_highlight.delta is not None %}<small class="goal-highlight-delta">{% if review.goal_highlight.delta > 0 %}+{% endif %}{{ review.goal_highlight.delta_display }} vs. periodo anterior</small>{% endif %}
+                </div>
+            </div>
+
+            <div class="stats-grid progress-summary-grid">
+                <div class="stat-card">
+                    <span class="stat-icon">✅</span>
+                    <div class="stat-info"><span class="stat-value">{{ review.current.sessions }}</span><span class="stat-label">Sesiones</span></div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">⏱️</span>
+                    <div class="stat-info"><span class="stat-value">{{ review.current.minutes }}</span><span class="stat-label">Minutos</span></div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">💪</span>
+                    <div class="stat-info"><span class="stat-value">{% if review.current.avg_rpe is not None %}{{ review.current.avg_rpe }}{% else %}—{% endif %}</span><span class="stat-label">RPE promedio</span></div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">📦</span>
+                    <div class="stat-info"><span class="stat-value">{% if review.current.total_volume is not None %}{{ review.current.total_volume|floatformat:-1 }}{% else %}—{% endif %}</span><span class="stat-label">Volumen (kg)</span></div>
+                </div>
+            </div>
+
+            <div class="progress-review-footer">
+                <p class="progress-insight">{{ review.goal_highlight.insight }}</p>
+                {% if review.adherence %}
+                <span class="section-pill">Plan: {{ review.adherence.completed }}/{{ review.adherence.due }} · {{ review.adherence.percent }}%</span>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="progress-trend-card" aria-labelledby="trend-title">
+            <div class="section-heading-row">
+                <div>
+                    <span class="detail-kicker">Últimas semanas</span>
+                    <h2 id="trend-title" class="column-title">Constancia de entrenamiento</h2>
+                </div>
+                <span class="section-pill">Sesiones completadas</span>
+            </div>
+            <div class="progress-trend-chart" role="img" aria-label="Sesiones completadas por semana">
+                {% for week in weekly_trends %}
+                <div class="progress-trend-slot">
+                    <span class="progress-trend-count">{{ week.sessions }}</span>
+                    <div class="progress-trend-bar" style="height: {% if week.pct %}{{ week.pct }}%{% else %}2px{% endif %};"></div>
+                    <span class="progress-trend-label">{{ week.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="history-section" aria-labelledby="history-title">
+            <div class="section-heading-row">
+                <div>
+                    <span class="detail-kicker">Registro personal</span>
+                    <h2 id="history-title" class="column-title">Tus sesiones</h2>
+                </div>
+                <span class="section-pill">{{ history_page.paginator.count }} resultados</span>
+            </div>
+
+            <form method="get" class="history-filters" aria-label="Filtrar historial">
+                <div class="form-group">
+                    <label for="history-period">Periodo</label>
+                    <select id="history-period" name="period" class="form-select">
+                        {% for value, label in period_options %}<option value="{{ value }}" {% if filters.period == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="history-source">Origen</label>
+                    <select id="history-source" name="source" class="form-select">
+                        {% for value, label in source_options %}<option value="{{ value }}" {% if filters.source == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="history-exercise">Ejercicio</label>
+                    <select id="history-exercise" name="exercise" class="form-select">
+                        <option value="">Todos</option>
+                        {% for exercise in exercise_options %}<option value="{{ exercise.id }}" {% if filters.exercise == exercise.id|stringformat:'s' %}selected{% endif %}>{{ exercise.name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group history-search-field">
+                    <label for="history-query">Buscar rutina</label>
+                    <input id="history-query" name="q" type="search" class="form-input" value="{{ filters.q }}" maxlength="80" placeholder="Nombre de rutina">
+                </div>
+                <div class="history-filter-actions">
+                    <button class="btn btn-primary" type="submit">Filtrar</button>
+                    <a class="btn btn-text" href="{% url 'exercises:progress_overview' %}">Limpiar</a>
+                </div>
+            </form>
+
+            <div class="history-list">
+                {% for row in history_rows %}
+                <article class="history-card">
+                    <div class="history-card-main">
+                        <div class="history-card-heading">
+                            <div>
+                                <span class="detail-kicker">{{ row.date|date:'d M Y · H:i' }}</span>
+                                <h3>{{ row.title }}</h3>
+                            </div>
+                            <div class="history-card-tags">
+                                {% if row.planned %}<span class="tag">Plan</span>{% else %}<span class="tag">Independiente</span>{% endif %}
+                                {% if row.edited %}<span class="tag">Editada</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="history-card-metrics">
+                            <span>{% if row.duration %}⏱️ {{ row.duration }} min{% else %}Sin duración{% endif %}</span>
+                            <span>{% if row.rpe %}💪 RPE {{ row.rpe }}{% else %}RPE —{% endif %}</span>
+                            <span>{% if row.weight %}🏋️ {{ row.weight|floatformat:-1 }} kg{% else %}Sin peso{% endif %}</span>
+                            {% if row.has_details %}<span>{{ row.sets }} series · {{ row.exercise_count }} ejercicios</span>{% endif %}
+                        </div>
+                    </div>
+                    <a class="btn btn-outline btn-sm" href="{% url 'exercises:progress_session_detail' row.log.id %}">Revisar</a>
+                </article>
+                {% empty %}
+                <div class="empty-state-card history-empty-state">
+                    <h3>No encontramos sesiones con esos filtros.</h3>
+                    <p>Prueba otro periodo o completa una sesión desde una de tus rutinas.</p>
+                    <a class="btn btn-primary btn-sm" href="{% url 'exercises:workout_list' %}">Explorar rutinas</a>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if history_page.has_other_pages %}
+            <nav class="pagination" aria-label="Paginación del historial">
+                {% if history_page.has_previous %}
+                <a class="page-link" href="?period={{ filters.period }}&amp;source={{ filters.source }}&amp;exercise={{ filters.exercise }}&amp;q={{ filters.q|urlencode }}&amp;page={{ history_page.previous_page_number }}">← Anterior</a>
+                {% endif %}
+                <span class="page-status">Página {{ history_page.number }} de {{ history_page.paginator.num_pages }}</span>
+                {% if history_page.has_next %}
+                <a class="page-link" href="?period={{ filters.period }}&amp;source={{ filters.source }}&amp;exercise={{ filters.exercise }}&amp;q={{ filters.q|urlencode }}&amp;page={{ history_page.next_page_number }}">Siguiente →</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

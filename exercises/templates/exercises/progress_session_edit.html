@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Corregir sesión · {{ title }} - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="progress-section">
+    <div class="container container-sm">
+        <header class="section-header">
+            <a class="back-link" href="{% url 'exercises:progress_session_detail' log.id %}">← Volver al detalle</a>
+            <span class="detail-kicker">Corrección segura</span>
+            <h1 class="gradient-text">Corregir sesión</h1>
+            <p class="section-subtitle">{{ title }} · {{ log.completed_at|date:'d/m/Y · H:i' }}</p>
+        </header>
+
+        <div class="history-edit-notice">
+            La fecha, la rutina, el plan y los ejercicios originales no se pueden cambiar. Solo se actualizarán las métricas y notas.
+        </div>
+
+        <form method="post" class="history-edit-form">
+            {% csrf_token %}
+            {{ log_form.non_field_errors }}
+            <div class="form-card">
+                <h2 class="card-title">Resumen de la sesión</h2>
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="{{ log_form.duration_minutes.id_for_label }}">{{ log_form.duration_minutes.label }}</label>
+                        {{ log_form.duration_minutes }}
+                        {{ log_form.duration_minutes.errors }}
+                    </div>
+                    <div class="form-group half">
+                        <label for="{{ log_form.rpe.id_for_label }}">{{ log_form.rpe.label }}</label>
+                        {{ log_form.rpe }}
+                        {{ log_form.rpe.errors }}
+                    </div>
+                </div>
+                {% if not has_details %}
+                <div class="form-group">
+                    <label for="{{ log_form.kettlebell_weight.id_for_label }}">{{ log_form.kettlebell_weight.label }}</label>
+                    {{ log_form.kettlebell_weight }}
+                    <small class="field-hint">{{ log_form.kettlebell_weight.help_text }}</small>
+                    {{ log_form.kettlebell_weight.errors }}
+                </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="{{ log_form.notes.id_for_label }}">{{ log_form.notes.label }}</label>
+                    {{ log_form.notes }}
+                    {{ log_form.notes.errors }}
+                </div>
+            </div>
+
+            {% if has_details %}
+            <div class="form-card">
+                <h2 class="card-title">Métricas por ejercicio</h2>
+                {{ performance_formset.management_form }}
+                {{ performance_formset.non_form_errors }}
+                <div class="performance-edit-list">
+                    {% for form in performance_formset %}
+                    <article class="performance-edit-card">
+                        {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+                        <div class="performance-history-heading">
+                            <div>
+                                <h3>{% if form.instance.exercise %}{{ form.instance.exercise.name }}{% else %}{{ form.instance.exercise_name_snapshot|default:'Ejercicio eliminado' }}{% endif %}</h3>
+                                <span>El ejercicio y el objetivo permanecen bloqueados.</span>
+                            </div>
+                            <div class="checkbox-group">{{ form.completed }}<label for="{{ form.completed.id_for_label }}">Completado</label></div>
+                        </div>
+                        {{ form.non_field_errors }}
+                        <div class="exercise-edit-grid">
+                            <div class="form-group"><label for="{{ form.sets_completed.id_for_label }}">{{ form.sets_completed.label }}</label>{{ form.sets_completed }}{{ form.sets_completed.errors }}</div>
+                            <div class="form-group"><label for="{{ form.reps_completed.id_for_label }}">{{ form.reps_completed.label }}</label>{{ form.reps_completed }}{{ form.reps_completed.errors }}</div>
+                            <div class="form-group"><label for="{{ form.weight.id_for_label }}">{{ form.weight.label }}</label>{{ form.weight }}{{ form.weight.errors }}</div>
+                            <div class="form-group"><label for="{{ form.rpe.id_for_label }}">{{ form.rpe.label }}</label>{{ form.rpe }}{{ form.rpe.errors }}</div>
+                        </div>
+                        <div class="form-group"><label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>{{ form.notes }}{{ form.notes.errors }}</div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="form-actions">
+                <a class="btn btn-text" href="{% url 'exercises:progress_session_detail' log.id %}">Cancelar</a>
+                <button class="btn btn-primary btn-lg" type="submit">Guardar corrección</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

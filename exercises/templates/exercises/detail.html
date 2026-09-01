@@ -195,6 +195,46 @@
       </div>
 
       <aside class="detail-sidebar">
+        {% if user.is_authenticated %}
+        <div class="stats-card exercise-progress-card">
+          <div class="progress-card-heading">
+            <div>
+              <span class="detail-kicker">Tu historial</span>
+              <h3 class="stats-title">Progreso en este ejercicio</h3>
+            </div>
+            <span class="progress-session-count">{{ exercise_progress.sessions }} sesiones</span>
+          </div>
+          <div class="progress-recommendation">
+            <span class="progression-kicker">Siguiente referencia</span>
+            <strong>
+              {% if exercise_progress.recommendation.suggested_weight %}
+              {{ exercise_progress.recommendation.suggested_weight|floatformat:-1 }} kg
+              {% else %}
+              Registra un peso
+              {% endif %}
+            </strong>
+            <span>{{ exercise_progress.recommendation.reason }}</span>
+          </div>
+          <div class="progress-stats-row">
+            <div><span>Máximo</span><strong>{% if exercise_progress.max_weight %}{{ exercise_progress.max_weight|floatformat:-1 }} kg{% else %}—{% endif %}</strong></div>
+            <div><span>Volumen mejor</span><strong>{% if exercise_progress.best_volume %}{{ exercise_progress.best_volume|floatformat:-1 }}{% else %}—{% endif %}</strong></div>
+          </div>
+          {% if exercise_progress.history %}
+          <ul class="exercise-history-list">
+            {% for row in exercise_progress.history|slice:":4" %}
+            <li>
+              <span>{{ row.date|date:"d/m" }}</span>
+              <strong>{% if row.weight %}{{ row.weight|floatformat:-1 }} kg{% else %}Sin peso{% endif %}</strong>
+              <span>{% if row.rpe %}RPE {{ row.rpe }}{% else %}RPE —{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="progress-empty-copy">Completa este movimiento para empezar a medir tu progresión.</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
         <div class="stats-card coach-sidebar-card">
           <h3 class="stats-title">Ficha rapida</h3>
           <div class="stat-item"><span class="stat-label">Duracion:</span><span class="stat-value">{% if exercise.duration_minutes %}{{ exercise.duration_minutes }} min{% else %}N/A{% endif %}</span></div>

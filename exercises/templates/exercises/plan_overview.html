@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi plan adaptativo - KettleBell Pro{% endblock %}
+
+{% block content %}
+<section class="plan-section">
+    <div class="container">
+        <header class="plan-header">
+            <div>
+                <span class="detail-kicker">Plan adaptativo · 4 semanas</span>
+                <h1 class="gradient-text">Tu camino de entrenamiento</h1>
+                <p class="section-subtitle">{{ plan.get_goal_display }} · {{ plan.sessions_per_week }} sesiones por semana · {{ plan.session_duration }} min</p>
+            </div>
+            <div class="plan-header-actions">
+                {% if plan.status == 'active' or plan.status == 'paused' %}
+                <form method="post" action="{% url 'exercises:plan_pause' plan.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-outline btn-sm" type="submit">{% if plan.status == 'paused' %}Reanudar{% else %}Pausar{% endif %}</button>
+                </form>
+                <form method="post" action="{% url 'exercises:plan_cancel' plan.id %}" onsubmit="return confirm('¿Cancelar este plan? Tu historial se conservará.');">
+                    {% csrf_token %}
+                    <button class="btn btn-danger-outline btn-sm" type="submit">Cancelar</button>
+                </form>
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="plan-summary-grid">
+            <div class="stat-card"><span class="stat-icon">📈</span><div class="stat-info"><span class="stat-value">{{ plan_progress.percent }}%</span><span class="stat-label">Adherencia completada</span></div></div>
+            <div class="stat-card"><span class="stat-icon">✅</span><div class="stat-info"><span class="stat-value">{{ plan_progress.completed }}/{{ plan_progress.total }}</span><span class="stat-label">Sesiones completadas</span></div></div>
+            <div class="stat-card"><span class="stat-icon">💪</span><div class="stat-info"><span class="stat-value">{% if plan_summary.avg_rpe %}{{ plan_summary.avg_rpe }}{% else %}—{% endif %}</span><span class="stat-label">RPE promedio</span></div></div>
+            <div class="stat-card"><span class="stat-icon">📅</span><div class="stat-info"><span class="stat-value">{{ plan.start_date|date:'d/m' }}–{{ plan.end_date|date:'d/m' }}</span><span class="stat-label">Duración del ciclo</span></div></div>
+        </div>
+
+        {% if next_planned_session and plan.status == 'active' %}
+        <div class="plan-today-card {% if next_planned_session.is_overdue %}is-overdue{% endif %}">
+            <div>
+                <span class="detail-kicker">{% if next_planned_session.is_overdue %}Pendiente anterior{% else %}Siguiente sesión{% endif %}</span>
+                <h2>{{ next_planned_session.focus|title }} · {{ next_planned_session.scheduled_date|date:'l d \d\e F' }}</h2>
+                <p>{{ next_planned_session.adaptation_reason }}</p>
+            </div>
+            <form method="post" action="{% url 'exercises:plan_session_prepare' next_planned_session.id %}">
+                {% csrf_token %}
+                <button class="btn btn-primary btn-lg" type="submit">Entrenar ahora</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if readiness_session and readiness_form %}
+        <section class="readiness-card" aria-labelledby="readiness-title">
+            <div class="readiness-copy">
+                <span class="detail-kicker">Antes de entrenar</span>
+                <h2 id="readiness-title">Ajustemos tu sesión de hoy</h2>
+                <p>Nos tomará menos de un minuto. Si marcas dolor, no generaremos una rutina.</p>
+            </div>
+            <form method="post" action="{% url 'exercises:plan_session_prepare' readiness_session.id %}" class="readiness-form">
+                {% csrf_token %}
+                {% if readiness_regenerate %}<input type="hidden" name="regenerate" value="1">{% endif %}
+                {% for field in readiness_form %}
+                <div class="metrics-field readiness-field">
+                    <label class="metrics-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+                </div>
+                {% endfor %}
+                {% if readiness_form.non_field_errors %}
+                <div class="field-error">{{ readiness_form.non_field_errors }}</div>
+                {% endif %}
+                <div class="readiness-actions">
+                    <button class="btn btn-primary btn-lg" type="submit">Continuar con el ajuste</button>
+                    <a class="btn btn-outline btn-lg" href="{% url 'exercises:plan_detail' plan.id %}">Ahora no</a>
+                </div>
+            </form>
+        </section>
+        {% endif %}
+
+        {% if plan.status == 'completed' %}
+        <div class="plan-complete-card"><strong>🎉 Ciclo completado.</strong> Revisa tu evolución y crea otro plan cuando quieras.</div>
+        {% elif plan.status == 'paused' %}
+        <div class="plan-complete-card">El plan está pausado. Reanúdalo cuando quieras continuar; no recibirás recordatorios mientras tanto.</div>
+        {% endif %}
+
+        <div class="plan-calendar">
+            <div class="section-heading-row"><div><span class="detail-kicker">Calendario</span><h2 class="column-title">Tus sesiones</h2></div><span class="section-pill">Los ajustes se explican</span></div>
+            {% for session in sessions %}
+            <article class="planned-session-card status-{{ session.status }} {% if session.is_today %}is-today{% endif %}">
+                <div class="planned-session-date"><span>Semana {{ session.week_number }}</span><strong>{{ session.scheduled_date|date:'D' }}<br>{{ session.scheduled_date|date:'d/m' }}</strong></div>
+                <div class="planned-session-content">
+                    <div class="planned-session-title"><h3>{{ session.focus|title }}</h3><span class="tag">{{ session.phase|title }}</span><span class="session-status">{{ session.get_status_display }}</span></div>
+                    <p>{{ session.adaptation_reason }}</p>
+                    {% if session.readiness_checked_at %}<small class="readiness-summary">Chequeo: energía {{ session.energy_level }}/5 · {% if session.pain_level == 'none' %}sin dolor{% elif session.pain_level == 'mild' %}molestia leve{% else %}dolor{% endif %} · {{ session.available_minutes }} min</small>{% endif %}
+                    {% if session.status == 'pending' and plan.status == 'active' %}
+                    <div class="planned-session-actions">
+                        {% if session.workout %}
+                        <form method="post" action="{% url 'exercises:plan_session_prepare' session.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm" type="submit">Entrenar</button></form>
+                        <form method="post" action="{% url 'exercises:plan_session_prepare' session.id %}">{% csrf_token %}<input type="hidden" name="regenerate" value="1"><button class="btn btn-outline btn-sm" type="submit">Regenerar</button></form>
+                        {% else %}
+                        <form method="post" action="{% url 'exercises:plan_session_prepare' session.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm" type="submit">Preparar sesión</button></form>
+                        {% endif %}
+                        <form method="post" action="{% url 'exercises:plan_session_reschedule' session.id %}" class="reschedule-form">{% csrf_token %}<input type="date" name="scheduled_date" min="{{ plan.start_date|date:'Y-m-d' }}" max="{{ plan.end_date|date:'Y-m-d' }}" value="{{ session.scheduled_date|date:'Y-m-d' }}"><button class="btn btn-outline btn-sm" type="submit">Mover</button></form>
+                        <form method="post" action="{% url 'exercises:plan_session_skip' session.id %}">{% csrf_token %}<button class="btn btn-text btn-sm" type="submit">Omitir</button></form>
+                    </div>
+                    {% elif session.status == 'completed' and session.workout %}
+                    <a class="btn btn-outline btn-sm" href="{% url 'exercises:workout_detail' session.workout.slug %}">Ver rutina</a>
+                    {% endif %}
+                </div>
+            </article>
+            {% empty %}<div class="empty-state-card"><p>No hay sesiones en este plan.</p></div>{% endfor %}
+        </div>
+
+        {% if plan.status == 'completed' or plan.status == 'cancelled' %}
+        <div class="plan-footer-actions"><a class="btn btn-primary" href="{% url 'exercises:plan_create' %}">Crear otro plan</a></div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

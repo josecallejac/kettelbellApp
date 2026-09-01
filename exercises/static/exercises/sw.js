@@ -1,15 +1,30 @@
 /* KettleBell Pro Service Worker */
-const CACHE_NAME = 'kb-pro-v1';
-const STATIC_CACHE = 'kb-static-v1';
+const CACHE_NAME = 'kb-pages-v4';
+const STATIC_CACHE = 'kb-static-v4';
 
 /* Core assets to pre-cache on install */
 const PRECACHE_URLS = [
-  '/',
   '/static/exercises/css/styles.css',
   '/static/exercises/js/favorites.js',
   '/static/exercises/img/favicon.svg',
   '/static/exercises/img/hero-kettlebell.png',
 ];
+
+/* Only these anonymous documents may be persisted offline. Never cache a
+ * dashboard, profile, plan, session, login response, or API response. */
+const PUBLIC_DOCUMENT_PATHS = new Set([
+  '/',
+  '/exercises/',
+  '/categories/',
+  '/levels/',
+]);
+
+function offlineResponse() {
+  return new Response(
+    '<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sin conexión · KettleBell Pro</title><body style="font-family:system-ui;padding:2rem;background:#0f172a;color:#e2e8f0"><h1>Sin conexión</h1><p>Vuelve a conectarte para abrir tu panel o guardar una sesión. Tu progreso local no se ha enviado todavía.</p></body></html>',
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 }
+  );
+}
 
 /* ---- Install: pre-cache core assets ---- */
 self.addEventListener('install', (event) => {
@@ -59,12 +74,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* HTML pages: network-first with cache fallback */
+  /* Public HTML pages: network-first with cache fallback. */
   if (request.headers.get('accept')?.includes('text/html')) {
+    if (!PUBLIC_DOCUMENT_PATHS.has(url.pathname)) {
+      event.respondWith(fetch(request).catch(() => offlineResponse()));
+      return;
+    }
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          if (response.ok && response.headers.get('X-KB-Public-Cache') === '1') {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
@@ -72,25 +91,16 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() =>
           caches.match(request).then((cached) =>
-            cached || caches.match('/')
+            cached || caches.match('/') || offlineResponse()
           )
         )
     );
     return;
   }
 
-  /* Everything else: network with cache fallback */
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(request))
-  );
+  /* APIs and all non-static requests are network-only. A failed API call must
+   * reach the page so the client can keep its pending draft/idempotency key. */
+  event.respondWith(fetch(request));
 });
 
 /* ---- Push Notifications ---- */
