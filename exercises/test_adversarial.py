@@ -1,11 +1,19 @@
 import json
-from decimal import Decimal
 from unittest.mock import patch
+
 from django.contrib.auth.models import User
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from exercises.models import Exercise, Favorite, UserProfile, Workout, WorkoutExercise, WorkoutLog, build_unique_slug
+from exercises.models import (
+    Exercise,
+    Favorite,
+    UserProfile,
+    Workout,
+    WorkoutExercise,
+    WorkoutLog,
+    build_unique_slug,
+)
 from exercises.utils import RoutineGenerator
 
 
@@ -70,12 +78,12 @@ class ModelRepresentationAndUrlTests(TestCase):
         self.assertEqual(exercise_with_img.image_url, '')
 
     def test_profile_weights_edge_cases(self):
-        # Weights parsing handles spaces, empty values, negative values, and duplicate weights
+        # Legacy free-form profiles ignore unsafe values while retaining valid ones.
         profile = UserProfile.objects.create(
             user=self.user,
             available_weights='-8, , 12, -16.5, 12,  '
         )
-        self.assertEqual(profile.weights_list(), [-16.5, -8.0, 12.0])
+        self.assertEqual(profile.weights_list(), [12.0])
 
         # Test empty available weights
         profile.available_weights = '   '

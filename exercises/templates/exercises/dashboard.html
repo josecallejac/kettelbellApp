@@ -82,6 +82,31 @@
             <a href="{% url 'exercises:generate_routine' %}" class="btn btn-primary">✨ Generar Rutina</a>
         </div>
 
+        {% if show_plan_invite %}
+        <div class="plan-invite-banner">
+            <div class="ai-banner-copy">
+                <span class="detail-kicker">Nuevo</span>
+                <h2>¿Quieres saber qué entrenar hoy?</h2>
+                <p>Crea un plan de cuatro semanas y adapta cada sesión a tu progreso real.</p>
+            </div>
+            <div class="push-actions">
+                <a href="{% url 'exercises:plan_create' %}" class="btn btn-primary">Crear mi plan</a>
+                <form method="post" action="{% url 'exercises:dismiss_plan_invite' %}">{% csrf_token %}<button class="btn btn-text" type="submit">Ahora no</button></form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if open_plan %}
+        <div class="plan-dashboard-card">
+            <div>
+                <span class="detail-kicker">Mi plan · {{ plan_progress.percent }}% completado</span>
+                <h2>{% if next_planned_session %}Tu próxima sesión: {{ next_planned_session.focus|title }}{% else %}Ciclo en revisión{% endif %}</h2>
+                {% if next_planned_session %}<p>{{ next_planned_session.scheduled_date|date:'l d/m' }} · {{ next_planned_session.adaptation_reason }}</p>{% else %}<p>Has completado o revisado todas las sesiones de este ciclo.</p>{% endif %}
+            </div>
+            <a href="{% url 'exercises:plan_overview' %}" class="btn btn-primary">Ver mi plan</a>
+        </div>
+        {% endif %}
+
         <!-- Push Notifications -->
         <div class="ai-banner" id="push-banner" style="display: none;">
             <div class="ai-banner-copy">
@@ -139,7 +164,9 @@
                 <span class="stat-icon">⚖️</span>
                 <div class="stat-info">
                     <span class="stat-value">{{ suggested_weight|floatformat:0 }} kg</span>
-                    <span class="stat-label">Peso sugerido</span>
+                    <span class="stat-label">
+                        Peso sugerido{% if suggested_weight_exercise %} · {{ suggested_weight_exercise.name }}{% else %} · según tu perfil{% endif %}
+                    </span>
                 </div>
             </div>
             {% endif %}
@@ -218,6 +245,34 @@
         </div>
         {% endif %}
 
+        {% if exercise_progress %}
+        <div class="exercise-progress-dashboard">
+            <div class="section-heading-row">
+                <div>
+                    <span class="detail-kicker">Progresión real</span>
+                    <h2 class="column-title">Tus ejercicios recientes</h2>
+                </div>
+                <span class="section-pill">Por movimiento</span>
+            </div>
+            <div class="exercise-progress-grid">
+                {% for item in exercise_progress %}
+                <a class="exercise-progress-item" href="{% url 'exercises:detail' item.exercise.slug %}">
+                    <div class="exercise-progress-item-heading">
+                        <strong>{{ item.exercise.name }}</strong>
+                        <span>{{ item.sessions }} sesiones</span>
+                    </div>
+                    <div class="exercise-progress-metrics">
+                        <span>Último: {% if item.last_weight %}{{ item.last_weight|floatformat:-1 }} kg{% else %}—{% endif %}</span>
+                        <span>RPE: {% if item.last_rpe %}{{ item.last_rpe }}{% else %}—{% endif %}</span>
+                        <span class="exercise-progress-next">Siguiente: {% if item.suggested_weight %}{{ item.suggested_weight|floatformat:-1 }} kg{% else %}registra peso{% endif %}</span>
+                    </div>
+                    <small>{{ item.reason }}</small>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Mis Rutinas -->
         <div class="my-workouts-section">
             <h2 class="column-title">Mis Rutinas</h2>
@@ -259,13 +314,16 @@
         <div class="dashboard-grid">
             <!-- Recent Activity -->
             <div class="dashboard-column">
-                <h2 class="column-title">Actividad Reciente</h2>
+                <div class="section-heading-row">
+                    <h2 class="column-title">Actividad Reciente</h2>
+                    <a class="btn btn-text btn-sm" href="{% url 'exercises:progress_overview' %}">Ver historial</a>
+                </div>
                 <div class="activity-list">
                     {% for log in recent_logs %}
                     <div class="activity-item">
                         <div class="activity-icon">✅</div>
                         <div class="activity-content">
-                            <h3 class="activity-name">{{ log.workout.title }}</h3>
+                            <h3 class="activity-name">{% if log.workout %}{{ log.workout.title }}{% else %}{{ log.workout_title_snapshot|default:'Rutina eliminada' }}{% endif %}</h3>
                             <span class="activity-date">{{ log.completed_at|date:"d M, Y - H:i" }}</span>
                             <div class="activity-metrics">
                                 {% if log.duration_minutes %}<span class="metric-chip">⏱️ {{ log.duration_minutes }} min</span>{% endif %}
@@ -274,7 +332,10 @@
                             </div>
                             {% if log.notes %}<p class="activity-notes">{{ log.notes }}</p>{% endif %}
                         </div>
-                        <a href="{% url 'exercises:workout_detail' log.workout.slug %}" class="btn btn-sm btn-outline">Ver</a>
+                        <div class="activity-actions">
+                            <a href="{% url 'exercises:progress_session_detail' log.id %}" class="btn btn-sm btn-primary">Revisar</a>
+                            {% if log.workout %}<a href="{% url 'exercises:workout_detail' log.workout.slug %}" class="btn btn-sm btn-outline">Rutina</a>{% endif %}
+                        </div>
                     </div>
                     {% empty %}
                     <div class="empty-state-card">

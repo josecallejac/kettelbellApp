@@ -20,7 +20,7 @@
     <script>
       (function(){var t=localStorage.getItem('kb-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
     </script>
-    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260714-consolidated" />
+    <link rel="stylesheet" href="{% static 'exercises/css/styles.css' %}?v=20260901-responsive" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -55,6 +55,8 @@
             </button>
             {% if user.is_authenticated %}
             <a href="{% url 'exercises:dashboard' %}" class="nav-link">Mi Panel</a>
+            <a href="{% url 'exercises:progress_overview' %}" class="nav-link">Progreso</a>
+            <a href="{% url 'exercises:plan_overview' %}" class="nav-link">Mi Plan</a>
             <a href="{% url 'exercises:profile' %}" class="nav-link">Mi Perfil</a>
             <form action="{% url 'exercises:logout' %}" method="post" class="nav-form">
                 {% csrf_token %}
@@ -62,7 +64,9 @@
             </form>
             {% else %}
             <a href="{% url 'exercises:login' %}" class="nav-link">Iniciar sesion</a>
+            {% if allow_registration %}
             <a href="{% url 'exercises:register' %}" class="nav-link nav-link-cta">Registrarse</a>
+            {% endif %}
             {% endif %}
           </div>
         </div>
@@ -183,7 +187,7 @@
     <script>
       /* Register Service Worker */
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('{% static "exercises/sw.js" %}', { scope: '/' })
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .catch(function(err) { console.log('SW registration failed:', err); });
       }
     </script>

@@ -4,13 +4,16 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
@@ -18,20 +21,90 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements-dev.txt
 
+      - name: Auditar dependencias
+        run: pip-audit -r requirements-dev.txt
+
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Tests (SQLite)
-        run: python manage.py test exercises --verbosity 0
+      - name: Validar Compose
+        env:
+          DJANGO_SECRET_KEY: ci-placeholder-django-secret
+          POSTGRES_PASSWORD: ci-placeholder-postgres-password
+        run: docker compose config --quiet
 
-      - name: Colectar estáticos para chequeo de despliegue
+      - name: Construir imagenes Docker
+        env:
+          DJANGO_SECRET_KEY: ci-placeholder-django-secret
+          POSTGRES_PASSWORD: ci-placeholder-postgres-password
+        run: docker compose build web reminders
+
+      - name: Instalar navegador para smoke tests
+        run: python -m playwright install --with-deps chromium
+
+      - name: Tests de dominio (SQLite)
+        run: python manage.py test exercises.tests exercises.test_e2e exercises.test_adversarial --verbosity 0
+
+      - name: Verificar migraciones
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Smoke tests de navegador
+        run: python manage.py test exercises.test_browser --verbosity 1
+
+      - name: Colectar estaticos para chequeo de despliegue
         env:
           DJANGO_DEBUG: 'False'
-          DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+          DJANGO_SECRET_KEY: ci-placeholder-django-secret
         run: python manage.py collectstatic --noinput
 
       - name: Chequeo de despliegue
         env:
           DJANGO_DEBUG: 'False'
-          DJANGO_SECRET_KEY: ci-k3y-9v2m-x8qw-7rt4-solo-para-chequeos-no-usar-en-produccion-01
+          DJANGO_SECRET_KEY: ci-placeholder-django-secret
+          DJANGO_ENABLE_HTTPS: 'True'
         run: python manage.py check --deploy
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kettlebell_ci
+          POSTGRES_USER: kettlebell
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kettlebell -d kettlebell_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DJANGO_DEBUG: 'False'
+      DJANGO_ALLOW_REGISTRATION: 'True'
+      DJANGO_SECRET_KEY: ci-placeholder-django-secret
+      POSTGRES_DB: kettlebell_ci
+      POSTGRES_USER: kettlebell
+      POSTGRES_PASSWORD: ci-postgres-password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Aplicar migraciones PostgreSQL
+        run: python manage.py migrate --noinput
+
+      - name: Preparar estáticos para pruebas PostgreSQL
+        run: python manage.py collectstatic --noinput
+
+      - name: Tests de dominio (PostgreSQL)
+        run: python manage.py test exercises.tests exercises.test_e2e exercises.test_adversarial --verbosity 0

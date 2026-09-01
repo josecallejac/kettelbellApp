@@ -26,8 +26,10 @@ for attempt in range(60):
 PY
 fi
 
-python manage.py migrate --noinput
-python manage.py seed_catalog
-python manage.py collectstatic --noinput
+if [ "${KETTLEBELL_SKIP_INIT:-False}" != "True" ]; then
+  python manage.py migrate --noinput
+  python manage.py seed_catalog
+  python manage.py collectstatic --noinput
+fi
 
 exec "$@"

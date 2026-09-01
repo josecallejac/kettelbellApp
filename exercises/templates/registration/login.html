@@ -35,12 +35,14 @@
                 </button>
             </form>
 
+            {% if allow_registration %}
             <div class="auth-footer">
                 <p>
                     ¿No tienes una cuenta?
                     <a href="{% url 'exercises:register' %}">Regístrate aquí</a>
                 </p>
             </div>
+            {% endif %}
         </div>
     </div>
 </section>

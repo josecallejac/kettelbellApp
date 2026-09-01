@@ -30,6 +30,22 @@
     </div>
 </section>
 
+{% if show_plan_invite %}
+<section class="container plan-landing-invite">
+    <div class="plan-invite-banner">
+        <div class="ai-banner-copy">
+            <span class="detail-kicker">Tu próximo paso</span>
+            <h2>Convierte tus sesiones en un plan</h2>
+            <p>Cuatro semanas, días flexibles y ajustes según tu progreso.</p>
+        </div>
+        <div class="push-actions">
+            <a href="{% url 'exercises:plan_create' %}" class="btn btn-primary">Crear mi plan</a>
+            <form method="post" action="{% url 'exercises:dismiss_plan_invite' %}">{% csrf_token %}<button class="btn btn-text" type="submit">Ahora no</button></form>
+        </div>
+    </div>
+</section>
+{% endif %}
+
 <!-- Stats / quick nav -->
 <section class="stats-section">
     <div class="container">
