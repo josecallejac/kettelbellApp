@@ -56,6 +56,12 @@ def _previous_available_weight(weights, current):
     return previous[-1] if previous else None
 
 
+def _at_or_below_available_weight(weights, current):
+    """Return the heaviest inventory weight that does not exceed ``current``."""
+    available = [weight for weight in weights if weight <= current]
+    return available[-1] if available else None
+
+
 def _nearest_available_weight(weights, current):
     return min(weights, key=lambda weight: abs(weight - current))
 
@@ -157,8 +163,18 @@ def recommend_exercise_progression(user, exercise, latest=None):
             reason = 'RPE controlado: mantén el peso máximo disponible.'
             status = 'maintain'
     else:
-        suggested = _nearest_available_weight(weights, last_weight) if weights else last_weight
-        reason = 'Mantén el peso y consolida el movimiento.'
+        if weights:
+            suggested = _at_or_below_available_weight(weights, last_weight)
+            if suggested is None:
+                reason = (
+                    'No hay un peso igual o menor en tu inventario; registra una carga '
+                    'disponible para ajustar la progresión.'
+                )
+            else:
+                reason = 'Mantén el peso y consolida el movimiento.'
+        else:
+            suggested = last_weight
+            reason = 'Mantén el peso y consolida el movimiento.'
         status = 'maintain'
 
     return {

@@ -653,7 +653,7 @@ class DashboardTests(TestCase):
         self.assertEqual(prs['best_streak'], 0)
         self.assertEqual(prs['best_week'], 0)
 
-    def test_dashboard_suggested_weight_from_history(self):
+    def test_dashboard_legacy_aggregate_history_is_not_used_as_suggestion(self):
         from datetime import timedelta
 
         from django.utils import timezone
@@ -668,8 +668,96 @@ class DashboardTests(TestCase):
         WorkoutLog.objects.filter(pk=log2.pk).update(completed_at=now + timedelta(seconds=1))
         self.client.login(username='dashuser', password='password123')
         response = self.client.get(reverse('exercises:dashboard'))
-        # Debe sugerir el último peso usado (20)
-        self.assertEqual(response.context['suggested_weight'], 20.0)
+        # Un peso agregado de la rutina no identifica el ejercicio que debe
+        # progresar y no debe aparecer como recomendación global.
+        self.assertIsNone(response.context['suggested_weight'])
+        self.assertIsNone(response.context['suggested_weight_exercise'])
+
+    def test_dashboard_suggested_weight_comes_from_latest_exercise(self):
+        exercise = Exercise.objects.create(
+            name='Peso muerto del dashboard',
+            description='x',
+            category='strength',
+            difficulty='beginner',
+        )
+        workout_exercise = WorkoutExercise.objects.create(
+            workout=self.mine,
+            exercise=exercise,
+            order=1,
+            sets=3,
+            reps='10 reps',
+        )
+        UserProfile.objects.create(
+            user=self.user,
+            level='intermediate',
+            available_weights='8, 12, 16',
+        )
+        first_log = WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=6)
+        ExercisePerformance.objects.create(
+            user=self.user,
+            workout_log=first_log,
+            workout_exercise=workout_exercise,
+            exercise=exercise,
+            completed=True,
+            sets_completed=3,
+            reps_completed=10,
+            weight=8,
+            rpe=6,
+        )
+        second_log = WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=6)
+        ExercisePerformance.objects.create(
+            user=self.user,
+            workout_log=second_log,
+            workout_exercise=workout_exercise,
+            exercise=exercise,
+            completed=True,
+            sets_completed=3,
+            reps_completed=10,
+            weight=12,
+            rpe=6,
+        )
+
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+
+        self.assertEqual(response.context['suggested_weight'], 16.0)
+        self.assertEqual(response.context['suggested_weight_exercise'], exercise)
+        self.assertContains(response, 'Peso sugerido · Peso muerto del dashboard')
+
+    def test_dashboard_hard_latest_exercise_does_not_fallback_upward(self):
+        exercise = Exercise.objects.create(
+            name='Press pesado del dashboard',
+            description='x',
+            category='strength',
+            difficulty='beginner',
+        )
+        workout_exercise = WorkoutExercise.objects.create(
+            workout=self.mine,
+            exercise=exercise,
+            order=1,
+            sets=3,
+            reps='10 reps',
+        )
+        UserProfile.objects.create(user=self.user, available_weights='8, 12')
+        log = WorkoutLog.objects.create(user=self.user, workout=self.mine, rpe=9)
+        ExercisePerformance.objects.create(
+            user=self.user,
+            workout_log=log,
+            workout_exercise=workout_exercise,
+            exercise=exercise,
+            completed=True,
+            sets_completed=3,
+            reps_completed=10,
+            weight=4,
+            rpe=9,
+        )
+
+        self.client.login(username='dashuser', password='password123')
+        response = self.client.get(reverse('exercises:dashboard'))
+
+        self.assertIsNone(response.context['suggested_weight'])
+        self.assertIsNone(response.context['suggested_weight_exercise'])
+        self.assertContains(response, 'Siguiente: registra peso')
 
     def test_dashboard_suggested_weight_from_profile(self):
         UserProfile.objects.create(user=self.user, level='intermediate', available_weights='8, 12, 16')
@@ -677,6 +765,7 @@ class DashboardTests(TestCase):
         response = self.client.get(reverse('exercises:dashboard'))
         # Sin historial, fallback al perfil: intermediate -> index 1 -> 12
         self.assertEqual(response.context['suggested_weight'], 12.0)
+        self.assertIsNone(response.context['suggested_weight_exercise'])
 
     def test_dashboard_suggested_weight_none_without_data(self):
         self.client.login(username='dashuser', password='password123')
@@ -882,6 +971,19 @@ class ExerciseProgressionTests(TestCase):
         self._performance(self.user, 16, 6)
         recommendation = recommend_exercise_progression(self.user, self.exercise)
         self.assertEqual(recommendation['suggested_weight'], 12.0)
+
+    def test_moderate_rpe_uses_equal_or_lower_inventory_weight(self):
+        self._performance(self.user, 10, 8)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertEqual(recommendation['suggested_weight'], 8.0)
+        self.assertEqual(recommendation['status'], 'maintain')
+
+    def test_moderate_rpe_does_not_fallback_upward_when_inventory_is_heavier(self):
+        self._performance(self.user, 7, 8)
+        recommendation = recommend_exercise_progression(self.user, self.exercise)
+        self.assertIsNone(recommendation['suggested_weight'])
+        self.assertEqual(recommendation['status'], 'maintain')
+        self.assertIn('igual o menor', recommendation['reason'])
 
     def test_other_user_history_is_not_used(self):
         self._performance(self.other, 16, 6)

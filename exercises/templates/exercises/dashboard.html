@@ -164,7 +164,9 @@
                 <span class="stat-icon">⚖️</span>
                 <div class="stat-info">
                     <span class="stat-value">{{ suggested_weight|floatformat:0 }} kg</span>
-                    <span class="stat-label">Peso sugerido</span>
+                    <span class="stat-label">
+                        Peso sugerido{% if suggested_weight_exercise %} · {{ suggested_weight_exercise.name }}{% else %} · según tu perfil{% endif %}
+                    </span>
                 </div>
             </div>
             {% endif %}

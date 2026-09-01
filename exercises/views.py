@@ -688,18 +688,17 @@ def _compute_best_week(log_dates):
     return max(week_counts.values())
 
 
-def compute_suggested_weight(user):
-    """Peso sugerido basado en el historial real de entrenamientos."""
-    last_weight = (
-        WorkoutLog.objects.filter(user=user, kettlebell_weight__isnull=False)
-        .order_by('-completed_at')
-        .values_list('kettlebell_weight', flat=True)
-        .first()
-    )
-    if last_weight is not None:
-        return float(last_weight)
+def compute_suggested_weight(user, exercise_progress=None):
+    """Return the dashboard weight without mixing aggregate and exercise data."""
+    if exercise_progress is None:
+        exercise_progress = build_dashboard_exercise_progress(user)
+    if exercise_progress:
+        # The most recent exercise owns the recommendation. In particular, do
+        # not replace a safe ``None`` (for example after a hard session with no
+        # lighter inventory) with an unrelated aggregate workout weight.
+        return exercise_progress[0]['suggested_weight']
 
-    # Fallback: usar el perfil
+    # Without detailed history, use only the profile as a neutral starting point.
     profile = UserProfile.objects.filter(user=user).first()
     if profile:
         weights = profile.weights_list()
@@ -730,6 +729,14 @@ def dashboard(request):
 
     stats = logs.aggregate(total_minutes=Sum('duration_minutes'), avg_rpe=Avg('rpe'))
 
+    exercise_progress = build_dashboard_exercise_progress(request.user)
+    suggested_weight = compute_suggested_weight(request.user, exercise_progress)
+    suggested_weight_exercise = (
+        exercise_progress[0]['exercise']
+        if exercise_progress and suggested_weight is not None
+        else None
+    )
+
     context = {
         'recent_logs': recent_logs,
         'favorite_exercises': favorite_exercises,
@@ -742,8 +749,9 @@ def dashboard(request):
         'weekly_chart': build_weekly_chart(log_dates, today),
         'rpe_chart': build_rpe_chart(logs, today),
         'personal_records': compute_personal_records(logs, log_dates, today),
-        'suggested_weight': compute_suggested_weight(request.user),
-        'exercise_progress': build_dashboard_exercise_progress(request.user),
+        'suggested_weight': suggested_weight,
+        'suggested_weight_exercise': suggested_weight_exercise,
+        'exercise_progress': exercise_progress,
         'open_plan': open_plan,
         'plan_progress': plan_progress(open_plan) if open_plan else None,
         'next_planned_session': next_session,
